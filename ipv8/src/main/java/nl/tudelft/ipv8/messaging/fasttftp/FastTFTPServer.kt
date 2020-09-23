@@ -75,21 +75,18 @@ class FastTFTPServer(
         while (true) {
             // get the response - ensure it is from the right place.
             if (packets.size == totalBlocks) {
-                logger.warn { "ALL BLOCKS FOUND :P:P:P" }
+                logger.warn { "All blocks received => done" }
                 break
             }
             var dataPacket: TFTPPacket? = null
             var timeoutCount = 0
-            while (!shutdownTransfer
-                && (dataPacket == null || dataPacket.address != twrp.address || dataPacket
-                    .port != twrp.port)
-            ) {
+            while (!shutdownTransfer && (dataPacket == null || dataPacket.address != twrp.address || dataPacket.port != twrp.port)) {
                 // listen for an answer.
                 if (dataPacket != null) {
                     // The data that we got didn't come from the
                     // expected source, fire back an error, and continue
                     // listening.
-                    logger.debug("TFTP Server ignoring message from unexpected source.")
+                    logger.debug("FastTFTP Server ignoring message from unexpected source.")
                     send(
                         TFTPErrorPacket(
                             dataPacket.address,
@@ -107,11 +104,13 @@ class FastTFTPServer(
                     logger.debug { "timeout" }
                     if (timeoutCount >= MAX_TIMEOUT_RETRIES) {
                         logger.debug { "total timeout" }
+                        throw e
+                    } else {
+                        // It didn't get our ack. Resend it.
+                        send(lastSentAck)
+                        timeoutCount++
+                        continue
                     }
-                    // It didn't get our ack. Resend it.
-                    send(lastSentAck)
-                    timeoutCount++
-                    continue
                 }
                 logger.debug { "packet received" }
             }
@@ -122,10 +121,7 @@ class FastTFTPServer(
                 logger.debug { "sent initial ack again..." }
             } else if (dataPacket == null || dataPacket !is TFTPDataPacket) {
                 if (!shutdownTransfer) {
-                    logger.debug(
-                        "Unexpected response from tftp client during transfer ("
-                            + dataPacket + ").  Transfer aborted."
-                    )
+                    logger.debug("Unexpected response from tftp client during transfer (" + dataPacket + ").  Transfer aborted.")
                 }
                 break
             } else {
@@ -141,14 +137,14 @@ class FastTFTPServer(
             }
         }
 
-        logger.debug { "stitching together..." }
+        logger.debug { "Stitching blocks together..." }
         for (packet in packets.toSortedMap().iterator()) {
             val data = packet.value.data
             val dataLength = packet.value.dataLength
             val dataOffset = packet.value.dataOffset
             bos.write(data, dataOffset, dataLength)
         }
-        logger.debug { "stitching finished" }
+        logger.debug { "Stitching finished" }
         // end of stream signal - The tranfer is complete.
         onFileReceived?.invoke(bos.toByteArray(), twrp.address, twrp.port)
 
