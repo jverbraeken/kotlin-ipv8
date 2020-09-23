@@ -28,7 +28,7 @@ class RandomWalk(
      * Walk to random walkable peer.
      */
     override fun takeStep() {
-        logger.debug("takeStep")
+//        logger.debug("takeStep")
 
         synchronized(walkLock) {
             if (peers >= 0 && overlay.getPeers().size >= peers) return

@@ -5,11 +5,11 @@ import mu.KotlinLogging
 import nl.tudelft.ipv8.keyvault.PrivateKey
 import nl.tudelft.ipv8.messaging.*
 import nl.tudelft.ipv8.messaging.payload.*
-import nl.tudelft.ipv8.messaging.tftp.TFTPCommunity
 import nl.tudelft.ipv8.peerdiscovery.Network
 import nl.tudelft.ipv8.peerdiscovery.WanEstimationLog
 import nl.tudelft.ipv8.util.addressIsLan
 import nl.tudelft.ipv8.util.hexToBytes
+import sun.rmi.runtime.Log
 import java.util.*
 import kotlin.random.Random
 
@@ -33,7 +33,7 @@ abstract class Community : Overlay {
     override lateinit var myPeer: Peer
     override lateinit var endpoint: EndpointAggregator
     override lateinit var network: Network
-    override var maxPeers: Int = 20
+    override var maxPeers: Int = 2
 
     private lateinit var job: Job
     protected lateinit var scope: CoroutineScope
@@ -135,8 +135,9 @@ abstract class Community : Overlay {
         }
 
         val packetPrefix = data.copyOfRange(0, prefix.size)
+//        logger.info("msgId = " + data[prefix.size].toUByte().toInt())
         if (!packetPrefix.contentEquals(prefix)) {
-            // logger.debug("prefix not matching")
+//            logger.debug("prefix not matching")
             return
         }
 
@@ -144,6 +145,7 @@ abstract class Community : Overlay {
         val handler = messageHandlers[msgId]
 
         if (handler != null) {
+//            logger.debug("handler found")
             try {
                 handler(packet)
             } catch (e: Exception) {
@@ -180,7 +182,7 @@ abstract class Community : Overlay {
             extraBytes
         )
 
-        logger.debug("-> $payload")
+//        logger.debug("-> $payload")
 
         return serializePacket(MessageId.INTRODUCTION_REQUEST, payload)
     }
@@ -215,7 +217,7 @@ abstract class Community : Overlay {
             send(intro, packet)
         }
 
-        logger.debug("-> $payload")
+//        logger.debug("-> $payload")
 
         return serializePacket(MessageId.INTRODUCTION_RESPONSE, payload, prefix = prefix)
     }
@@ -223,7 +225,7 @@ abstract class Community : Overlay {
     fun createPuncture(lanWalker: IPv4Address, wanWalker: IPv4Address, identifier: Int): ByteArray {
         val payload = PuncturePayload(lanWalker, wanWalker, identifier)
 
-        logger.debug("-> $payload")
+//        logger.debug("-> $payload")
 
         return serializePacket(MessageId.PUNCTURE, payload)
     }
@@ -233,7 +235,7 @@ abstract class Community : Overlay {
         wanWalker: IPv4Address,
         identifier: Int
     ): ByteArray {
-        logger.debug("-> punctureRequest")
+//        logger.debug("-> punctureRequest")
         val payload = PunctureRequestPayload(lanWalker, wanWalker, identifier)
         return serializePacket(MessageId.PUNCTURE_REQUEST, payload, sign = false)
     }
@@ -351,10 +353,10 @@ abstract class Community : Overlay {
         peer: Peer,
         payload: IntroductionRequestPayload
     ) {
-        logger.debug("<- $payload")
+//        logger.debug("<- $payload")
 
         if (maxPeers >= 0 && getPeers().size >= maxPeers) {
-            logger.info("Dropping introduction request from $peer, too many peers!")
+//            logger.info("Dropping introduction request from $peer, too many peers!")
             return
         }
 
@@ -377,7 +379,7 @@ abstract class Community : Overlay {
         peer: Peer,
         payload: IntroductionResponsePayload
     ) {
-        logger.debug("<- $payload")
+//        logger.debug("<- $payload")
 
         addEstimatedWan(peer, payload.destinationAddress)
 
@@ -448,7 +450,7 @@ abstract class Community : Overlay {
         peer: Peer,
         payload: PuncturePayload
     ) {
-        logger.debug("<- $payload")
+//        logger.debug("<- $payload")
         // NOOP
     }
 
@@ -456,7 +458,7 @@ abstract class Community : Overlay {
         address: IPv4Address,
         payload: PunctureRequestPayload
     ) {
-        logger.debug("<- $payload")
+//        logger.debug("<- $payload")
 
         val target = if (payload.wanWalkerAddress.ip == myEstimatedWan.ip) {
             // They are on the same LAN, puncture should not be needed, but send it just in case

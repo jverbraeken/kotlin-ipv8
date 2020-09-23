@@ -46,11 +46,11 @@ class RandomChurn(
             val window = overlay.network.getRandomPeers(sampleSize)
             for (peer in window) {
                 if (shouldDrop(peer) && pinged.contains(peer.address)) {
-                    logger.debug("Dropping inactive peer $peer")
+//                    logger.debug("Dropping inactive peer $peer")
                     overlay.network.removePeer(peer)
                     pinged.remove(peer.address)
                 } else if (isInactive(peer) || peer.pings.size < Peer.MAX_PINGS) {
-                    logger.debug("Peer $peer is inactive")
+//                    logger.debug("Peer $peer is inactive")
                     val pingedAddress = pinged[peer.address]
                     if (pingedAddress != null) {
                         if (Date().time > pingedAddress.time + pingInterval * 1000) {

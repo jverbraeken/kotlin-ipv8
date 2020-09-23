@@ -70,7 +70,8 @@ class Packet(
         val publicKey = try {
             defaultCryptoProvider.keyFromPublicBin(auth.publicKey)
         } catch (e: IllegalArgumentException) {
-            throw PacketDecodingException("Incoming packet has an invalid public key", e)
+//            throw PacketDecodingException("Incoming packet has an invalid public key", e)
+            throw PacketDecodingException("Incoming packet has an invalid public key")
         }
         val signatureOffset = data.size - publicKey.getSignatureLength()
         val signature = data.copyOfRange(signatureOffset, data.size)

@@ -40,7 +40,7 @@ class DiscoveryCommunity : Community(), PingOverlay {
             ConnectionType.UNKNOWN,
             getMyOverlays(peer)
         )
-        logger.debug("-> $payload")
+//        logger.debug("-> $payload")
         return serializePacket(MessageId.SIMILARITY_REQUEST, payload, peer = peer)
     }
 
@@ -54,14 +54,14 @@ class DiscoveryCommunity : Community(), PingOverlay {
 
     internal fun createSimilarityResponse(identifier: Int, peer: Peer): ByteArray {
         val payload = SimilarityResponsePayload(identifier, getMyOverlays(peer))
-        logger.debug("-> $payload")
+//        logger.debug("-> $payload")
         return serializePacket(MessageId.SIMILARITY_RESPONSE, payload, peer = peer)
     }
 
     internal fun createPing(): Pair<Int, ByteArray> {
         val globalTime = claimGlobalTime()
         val payload = PingPayload((globalTime % UShort.MAX_VALUE).toInt())
-        logger.debug("-> $payload")
+//        logger.debug("-> $payload")
         return Pair(payload.identifier, serializePacket(MessageId.PING, payload, sign = false))
     }
 
@@ -77,7 +77,7 @@ class DiscoveryCommunity : Community(), PingOverlay {
 
     internal fun createPong(identifier: Int): ByteArray {
         val payload = PongPayload(identifier)
-        logger.debug("-> $payload")
+//        logger.debug("-> $payload")
         return serializePacket(MessageId.PONG, payload, sign = false)
     }
 
@@ -123,7 +123,7 @@ class DiscoveryCommunity : Community(), PingOverlay {
         peer: Peer,
         payload: SimilarityRequestPayload
     ) {
-        logger.debug("<- $payload")
+//        logger.debug("<- $payload")
 
         network.addVerifiedPeer(peer)
         network.discoverServices(peer, payload.preferenceList)
@@ -139,10 +139,10 @@ class DiscoveryCommunity : Community(), PingOverlay {
         peer: Peer,
         payload: SimilarityResponsePayload
     ) {
-        logger.debug("<- $payload")
+//        logger.debug("<- $payload")
 
         if (maxPeers >= 0 && getPeers().size >= maxPeers && !network.verifiedPeers.contains(peer)) {
-            logger.info("Dropping similarity response from $peer, too many peers!")
+//            logger.info("Dropping similarity response from $peer, too many peers!")
             return
         }
 
@@ -154,7 +154,7 @@ class DiscoveryCommunity : Community(), PingOverlay {
         address: Address,
         payload: PingPayload
     ) {
-        logger.debug("<- $payload")
+//        logger.debug("<- $payload")
 
         val packet = createPong(payload.identifier)
         send(address, packet)
@@ -163,7 +163,7 @@ class DiscoveryCommunity : Community(), PingOverlay {
     internal fun onPong(
         payload: PongPayload
     ) {
-        logger.debug("<- $payload")
+//        logger.debug("<- $payload")
 
         val pingRequest = pingRequestCache[payload.identifier]
         if (pingRequest != null) {

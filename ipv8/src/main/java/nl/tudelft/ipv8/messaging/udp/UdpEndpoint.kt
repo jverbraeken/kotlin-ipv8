@@ -1,7 +1,6 @@
 package nl.tudelft.ipv8.messaging.udp
 
 import kotlinx.coroutines.*
-import kotlinx.coroutines.channels.Channel
 import mu.KotlinLogging
 import nl.tudelft.ipv8.Community
 import nl.tudelft.ipv8.IPv4Address
@@ -9,6 +8,7 @@ import nl.tudelft.ipv8.Peer
 import nl.tudelft.ipv8.messaging.Endpoint
 import nl.tudelft.ipv8.messaging.EndpointListener
 import nl.tudelft.ipv8.messaging.Packet
+import nl.tudelft.ipv8.messaging.fasttftp.FastTFTPEndpoint
 import nl.tudelft.ipv8.messaging.tftp.TFTPEndpoint
 import java.io.IOException
 import java.net.*
@@ -18,7 +18,8 @@ private val logger = KotlinLogging.logger {}
 open class UdpEndpoint(
     private val port: Int,
     private val ip: InetAddress,
-    private val tftpEndpoint: TFTPEndpoint = TFTPEndpoint()
+    private val tftpEndpoint: TFTPEndpoint = TFTPEndpoint(),
+    private val fastTftpEndpoint: FastTFTPEndpoint = FastTFTPEndpoint()
 ) : Endpoint<Peer>() {
     private var socket: DatagramSocket? = null
 
@@ -27,12 +28,24 @@ open class UdpEndpoint(
 
     private var bindJob: Job? = null
     private var lanEstimationJob: Job? = null
+    private var busy = false
 
     init {
         tftpEndpoint.addListener(object : EndpointListener {
             override fun onPacket(packet: Packet) {
                 logger.debug(
                     "Received TFTP packet (${packet.data.size} B) from ${packet.source}"
+                )
+                notifyListeners(packet)
+            }
+
+            override fun onEstimatedLanChanged(address: IPv4Address) {
+            }
+        })
+        fastTftpEndpoint.addListener(object : EndpointListener {
+            override fun onPacket(packet: Packet) {
+                logger.debug(
+                    "Received FastTFTP packet (${packet.data.size} B) from ${packet.source}"
                 )
                 notifyListeners(packet)
             }
@@ -48,19 +61,33 @@ open class UdpEndpoint(
 
     override fun send(peer: Peer, data: ByteArray) {
         if (!isOpen()) throw IllegalStateException("UDP socket is closed")
+        if (busy) throw IllegalStateException("Already busy sending data, not sending the data")
+        busy = true
 
         val address = peer.address
 
-        scope.launch {
-            logger.debug("Send packet (${data.size} B) to $address ($peer)")
+        val job = scope.launch {
+//            logger.debug("Send packet (${data.size} B) to $address ($peer)")
             try {
                 if (data.size > UDP_PAYLOAD_LIMIT) {
-                    if (peer.supportsTFTP) {
+                    if (peer.supportsFastTFTP) {
+                        fastTftpEndpoint.send(address, data)
+                        logger.info {
+                            "The packet is larger then UDP_PAYLOAD_LIMIT and the peer " +
+                                "supports FastTFTP => using FastTFTP"
+                        }
+                    }/* if (peer.supportsTFTP) {
                         tftpEndpoint.send(address, data)
+                        logger.warn {
+                            "The packet is larger then UDP_PAYLOAD_LIMIT and the peer " +
+                                "does not support FastTFTP; using TFTP instead"
+                        }
                     } else {
-                        logger.warn { "The packet is larger then UDP_PAYLOAD_LIMIT and the peer " +
-                            "does not support TFTP" }
-                    }
+                        logger.warn {
+                            "The packet is larger then UDP_PAYLOAD_LIMIT and the peer " +
+                                "does not support TFTP"
+                        }
+                    }*/
                 } else {
                     send(address, data)
                 }
@@ -68,6 +95,7 @@ open class UdpEndpoint(
                 e.printStackTrace()
             }
         }
+        job.invokeOnCompletion { busy = false }
     }
 
     fun send(address: IPv4Address, data: ByteArray) = scope.launch(Dispatchers.IO) {
@@ -85,6 +113,9 @@ open class UdpEndpoint(
 
         tftpEndpoint.socket = socket
         tftpEndpoint.open()
+
+        fastTftpEndpoint.socket = socket
+        fastTftpEndpoint.open()
 
         logger.info { "Opened UDP socket on port ${socket.localPort}" }
 
@@ -117,6 +148,7 @@ open class UdpEndpoint(
         bindJob = null
 
         tftpEndpoint.close()
+        fastTftpEndpoint.close()
 
         socket?.close()
         socket = null
@@ -169,10 +201,10 @@ open class UdpEndpoint(
     }
 
     internal fun handleReceivedPacket(receivePacket: DatagramPacket) {
-        logger.debug(
-            "Received packet (${receivePacket.length} B) from " +
-                "${receivePacket.address.hostAddress}:${receivePacket.port}"
-        )
+//        logger.debug(
+//            "Received packet (${receivePacket.length} B) from " +
+//                "${receivePacket.address.hostAddress}:${receivePacket.port}"
+//        )
 
         // Check whether prefix is IPv8 or TFTP
         when (receivePacket.data[0]) {
@@ -181,14 +213,17 @@ open class UdpEndpoint(
                     IPv4Address(receivePacket.address.hostAddress, receivePacket.port)
                 val packet =
                     Packet(sourceAddress, receivePacket.data.copyOf(receivePacket.length))
-                logger.debug(
-                    "Received UDP packet (${receivePacket.length} B) from $sourceAddress"
-                )
+//                logger.debug(
+//                    "Received UDP packet (${receivePacket.length} B) from $sourceAddress"
+//                )
 
                 notifyListeners(packet)
             }
             TFTPEndpoint.PREFIX_TFTP -> {
                 tftpEndpoint.onPacket(receivePacket)
+            }
+            FastTFTPEndpoint.PREFIX_FASTTFTP -> {
+                fastTftpEndpoint.onPacket(receivePacket)
             }
             else -> {
                 logger.warn { "Invalid packet prefix" }
