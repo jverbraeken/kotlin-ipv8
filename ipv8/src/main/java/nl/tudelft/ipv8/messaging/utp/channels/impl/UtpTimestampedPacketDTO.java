@@ -6,10 +6,10 @@ import nl.tudelft.ipv8.messaging.utp.data.UtpPacket;
 
 public class UtpTimestampedPacketDTO {
 
+    private final UtpPacket utpPacket;
+    private final int utpTimeStamp;
     private DatagramPacket packet;
     private Long timestamp;
-    private UtpPacket utpPacket;
-    private int utpTimeStamp;
     private int ackedAfterMeCounter = 0;
     private boolean isPacketAcked = false;
     private boolean reduceWindow;

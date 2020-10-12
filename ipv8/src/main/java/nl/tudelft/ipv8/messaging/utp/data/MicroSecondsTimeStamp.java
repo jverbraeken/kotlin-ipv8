@@ -8,8 +8,8 @@ import static nl.tudelft.ipv8.messaging.utp.data.bytes.UnsignedTypesUtil.longToU
 
 public class MicroSecondsTimeStamp {
 
-    private static long initDateMillis = System.currentTimeMillis();
-    private static long startNs = System.nanoTime();
+    private static final long initDateMillis = System.currentTimeMillis();
+    private static final long startNs = System.nanoTime();
 
     /**
      * Returns a uTP time stamp for packet headers.
@@ -45,11 +45,8 @@ public class MicroSecondsTimeStamp {
      *
      * @return difference.
      */
-    public int utpDifference(int thisTimeStamp, int othertimestamp) {
-        int nowTime = thisTimeStamp;
-        long nowTimeL = nowTime & 0xFFFFFFFF;
-        long otherTimeL = othertimestamp & 0xFFFFFFFF;
-        long differenceL = nowTimeL - otherTimeL;
+    public int utpDifference(int thisTimeStamp, int otherTimestamp) {
+        long differenceL = (long) thisTimeStamp - (long) otherTimestamp;
         // TODO: POSSIBLE BUG NEGATIVE DIFFERENCE
         if (differenceL < 0) {
             differenceL += MAX_UINT;
@@ -58,7 +55,7 @@ public class MicroSecondsTimeStamp {
     }
 
     /**
-     * @return timestamp with micro second resulution
+     * @return timestamp with micro second resolution
      */
     public long timeStamp() {
 

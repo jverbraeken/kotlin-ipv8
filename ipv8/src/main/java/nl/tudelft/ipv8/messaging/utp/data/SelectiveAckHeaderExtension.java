@@ -7,7 +7,7 @@ import static nl.tudelft.ipv8.messaging.utp.data.bytes.UnsignedTypesUtil.longToU
 public class SelectiveAckHeaderExtension extends UtpHeaderExtension {
 
     /* Bit mappings */
-    public static byte[] BITMAP = {1, 2, 4, 8, 16, 32, 64, (byte) 128};
+    public static final byte[] BITMAP = {1, 2, 4, 8, 16, 32, 64, (byte) 128};
     private byte nextExtension;
     private byte[] bitMask;
 
@@ -22,8 +22,7 @@ public class SelectiveAckHeaderExtension extends UtpHeaderExtension {
         if (number < 2 || number > 9) {
             return false;
         } else {
-            boolean returnvalue = (BITMAP[number - 2] & bitmask) == BITMAP[number - 2];
-            return returnvalue;
+            return (BITMAP[number - 2] & bitmask) == BITMAP[number - 2];
         }
     }
 

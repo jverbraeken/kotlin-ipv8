@@ -29,8 +29,8 @@ import static nl.tudelft.ipv8.messaging.utp.channels.impl.alg.UtpAlgConfiguratio
 public class UtpAlgorithm {
     private int currentWindow = 0;
     private int maxWindow;
-    private MinimumDelay minDelay = new MinimumDelay();
-    private OutPacketBuffer buffer;
+    private final MinimumDelay minDelay = new MinimumDelay();
+    private final OutPacketBuffer buffer;
     private MicroSecondsTimeStamp timeStamper;
     private int currentAckPosition = 0;
     private int currentBurstSend = 0;
@@ -65,20 +65,17 @@ public class UtpAlgorithm {
      */
     public void ackReceived(UtpTimestampedPacketDTO pair) {
         short seqNrToAck = pair.utpPacket().getAckNumber();
-        UTPAlgorithmLoggerKt.getLogger().debug("Received ACK " + pair.utpPacket().toString());
         timeStampNow = timeStamper.timeStamp();
         lastAckReceived = timeStampNow;
         int advertisedWindow = pair.utpPacket().getWindowSize();
         updateAdvertisedWindowSize(advertisedWindow);
         int packetSizeJustAcked = buffer.markPacketAcked(seqNrToAck, timeStampNow,
             UtpAlgConfiguration.AUTO_ACK_SMALLER_THAN_ACK_NUMBER);
-        UTPAlgorithmLoggerKt.getLogger().debug("packetSizeJustAcked " + packetSizeJustAcked);
         if (packetSizeJustAcked > 0) {
             updateRtt(timeStampNow, seqNrToAck);
             updateWindow(pair.utpPacket(), timeStampNow, packetSizeJustAcked, pair.utpTimeStamp());
         }
         // TODO: With libutp, sometimes null pointer exception -> investigate.
-        UTPAlgorithmLoggerKt.getLogger().debug("utpPacket With Ext: " + pair.utpPacket().toString());
         SelectiveAckHeaderExtension selectiveAckExtension = findSelectiveAckExtension(pair.utpPacket());
         if (selectiveAckExtension != null) {
 
@@ -175,10 +172,6 @@ public class UtpAlgorithm {
         if (maxWindow == 0) {
             lastZeroWindow = timeStampNow;
         }
-        // get bytes successfully transmitted:
-        // this is the position of the bytebuffer (comes from programmer)
-        // substracted by the amount of bytes on fly (these are not yet acked)
-        int bytesSend = bBuffer.position() - buffer.getBytesOnfly();
     }
 
     private boolean setGainToZero(int gain) {
@@ -401,7 +394,8 @@ public class UtpAlgorithm {
      */
     public boolean isTimedOut() {
         if (timeStampNow - lastAckReceived > getTimeOutMicros() * 5 && lastAckReceived != 0) {
-            throw new RuntimeException("TIMED OUT!");
+            UTPAlgorithmLoggerKt.getLogger().debug("Timed out!");
+            return true;
         }
         return false;
     }

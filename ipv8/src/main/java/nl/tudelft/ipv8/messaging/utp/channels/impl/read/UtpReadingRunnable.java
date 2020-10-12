@@ -15,19 +15,19 @@ import nl.tudelft.ipv8.messaging.utp.data.UtpPacket;
 
 public class UtpReadingRunnable extends Thread implements Runnable {
     private final ByteArrayOutputStream bos = new ByteArrayOutputStream();
-    private UtpSocketChannelImpl channel;
-    private SkippedPacketBuffer skippedBuffer = new SkippedPacketBuffer();
-    private boolean exceptionOccured = false;
+    private final UtpSocketChannelImpl channel;
+    private final SkippedPacketBuffer skippedBuffer = new SkippedPacketBuffer();
+    private final UtpReadFutureImpl readFuture;
+    private final long startReadingTimeStamp;
+    private boolean exceptionOccurred = false;
     private boolean graceFullInterrupt;
     private boolean isRunning;
     private MicroSecondsTimeStamp timeStamper;
     private long totalPayloadLength = 0;
     private long lastPacketTimestamp;
     private int lastPayloadLength;
-    private UtpReadFutureImpl readFuture;
-    private long nowtimeStamp;
+    private long nowTimeStamp;
     private long lastPackedReceived;
-    private long startReadingTimeStamp;
     private boolean gotLastPacket = false;
     // in case we ack every x-th packet, this is the counter.
     private int currentPackedAck = 0;
@@ -51,7 +51,7 @@ public class UtpReadingRunnable extends Thread implements Runnable {
             try {
                 UtpTimestampedPacketDTO timestampedPair = queue.poll(UtpAlgConfiguration.TIME_WAIT_AFTER_LAST_PACKET / 2, TimeUnit.MICROSECONDS);
                 UTPReadingRunnableLoggerKt.getLogger().debug("Got data from queue: " + (timestampedPair == null));
-                nowtimeStamp = timeStamper.timeStamp();
+                nowTimeStamp = timeStamper.timeStamp();
                 if (timestampedPair != null) {
                     UTPReadingRunnableLoggerKt.getLogger().debug("Got data from queue, seq=" + timestampedPair.utpPacket().getSequenceNumber());
                     currentPackedAck++;
@@ -80,8 +80,8 @@ public class UtpReadingRunnable extends Thread implements Runnable {
                         gotLastPacket = true;
                         UTPReadingRunnableLoggerKt.getLogger().debug("ENDING READING, NO MORE incoming DATA");
                     } else {
-                        UTPReadingRunnableLoggerKt.getLogger().debug("now: " + nowtimeStamp + " last: " + lastPackedReceived + " = " + (nowtimeStamp - lastPackedReceived));
-                        UTPReadingRunnableLoggerKt.getLogger().debug("now: " + nowtimeStamp + " start: " + startReadingTimeStamp + " = " + (nowtimeStamp - startReadingTimeStamp));
+                        UTPReadingRunnableLoggerKt.getLogger().debug("now: " + nowTimeStamp + " last: " + lastPackedReceived + " = " + (nowTimeStamp - lastPackedReceived));
+                        UTPReadingRunnableLoggerKt.getLogger().debug("now: " + nowTimeStamp + " start: " + startReadingTimeStamp + " = " + (nowTimeStamp - startReadingTimeStamp));
                         throw new IOException();
                     }
                 }
@@ -90,15 +90,15 @@ public class UtpReadingRunnable extends Thread implements Runnable {
                 UTPReadingRunnableLoggerKt.getLogger().debug("Exception 1");
                 exp = ioe;
                 exp.printStackTrace();
-                exceptionOccured = true;
+                exceptionOccurred = true;
             } catch (InterruptedException iexp) {
                 UTPReadingRunnableLoggerKt.getLogger().debug("Exception 2");
                 iexp.printStackTrace();
-                exceptionOccured = true;
+                exceptionOccurred = true;
             } catch (ArrayIndexOutOfBoundsException aexp) {
                 UTPReadingRunnableLoggerKt.getLogger().debug("Exception 3");
                 aexp.printStackTrace();
-                exceptionOccured = true;
+                exceptionOccurred = true;
                 exp = new IOException();
             }
         }
@@ -115,10 +115,10 @@ public class UtpReadingRunnable extends Thread implements Runnable {
     private boolean isTimedOut() {
         //TODO: extract constants...
         /* time out after 4sec, when eof not reached */
-        boolean timedOut = nowtimeStamp - lastPackedReceived >= 4000000;
+        boolean timedOut = nowTimeStamp - lastPackedReceived >= 4000000;
         /* but if remote socket has not received synack yet, he will try to reconnect
          * await that as well */
-        boolean connectionReattemptAwaited = nowtimeStamp - startReadingTimeStamp >= 4000000;
+        boolean connectionReattemptAwaited = nowTimeStamp - startReadingTimeStamp >= 4000000;
         return timedOut && connectionReattemptAwaited;
     }
 
@@ -239,7 +239,7 @@ public class UtpReadingRunnable extends Thread implements Runnable {
     }
 
     private boolean continueReading() {
-        return !graceFullInterrupt && !exceptionOccured && (!gotLastPacket || hasSkippedPackets() || !timeAwaitedAfterLastPacket());
+        return !graceFullInterrupt && !exceptionOccurred && (!gotLastPacket || hasSkippedPackets() || !timeAwaitedAfterLastPacket());
     }
 
     private boolean timeAwaitedAfterLastPacket() {

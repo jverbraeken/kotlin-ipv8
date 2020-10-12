@@ -7,6 +7,7 @@ import java.nio.channels.FileChannel;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.LinkedList;
+import java.util.Locale;
 import java.util.Queue;
 
 import nl.tudelft.ipv8.messaging.utp.channels.impl.UtpTimestampedPacketDTO;
@@ -110,7 +111,7 @@ public class SkippedPacketBuffer {
     }
 
     public Queue<UtpTimestampedPacketDTO> getAllUntillNextMissing() {
-        Queue<UtpTimestampedPacketDTO> queue = new LinkedList<UtpTimestampedPacketDTO>();
+        Queue<UtpTimestampedPacketDTO> queue = new LinkedList<>();
         for (int i = 1; i < SIZE; i++) {
             if (buffer[i] != null) {
                 queue.add(buffer[i]);
@@ -160,7 +161,7 @@ public class SkippedPacketBuffer {
             FileChannel inChannel = aFile.getChannel();
             inChannel.truncate(0);
             ByteBuffer bbuffer = ByteBuffer.allocate(100000);
-            bbuffer.put((new SimpleDateFormat("dd_MM_hh_mm_ss")).format(new Date()).getBytes());
+            bbuffer.put((new SimpleDateFormat("dd_MM_hh_mm_ss", Locale.US)).format(new Date()).getBytes());
             bbuffer.put((string + "\n").getBytes());
             bbuffer.put(("SIZE: " + SIZE + "\n").getBytes());
             bbuffer.put(("count: " + elementCount + "\n").getBytes());

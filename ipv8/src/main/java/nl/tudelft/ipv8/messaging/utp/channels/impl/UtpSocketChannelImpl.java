@@ -45,10 +45,9 @@ import static nl.tudelft.ipv8.messaging.utp.data.bytes.UnsignedTypesUtil.MAX_USH
 import static nl.tudelft.ipv8.messaging.utp.data.bytes.UnsignedTypesUtil.longToUint;
 
 public class UtpSocketChannelImpl extends UtpSocketChannel {
-
     private final Object sendLock = new Object();
-    private volatile BlockingQueue<UtpTimestampedPacketDTO> writingQueue = new LinkedBlockingQueue<>();
-    private volatile BlockingQueue<UtpTimestampedPacketDTO> readingQueue = new LinkedBlockingQueue<>();
+    private final BlockingQueue<UtpTimestampedPacketDTO> writingQueue = new LinkedBlockingQueue<>();
+    private final BlockingQueue<UtpTimestampedPacketDTO> readingQueue = new LinkedBlockingQueue<>();
     private UtpWritingRunnable writer;
     private UtpReadingRunnable reader;
     private ScheduledExecutorService retryConnectionTimeScheduler;
@@ -198,8 +197,8 @@ public class UtpSocketChannelImpl extends UtpSocketChannel {
                 timestampDifference,
                 UtpAlgConfiguration.MAX_PACKET_SIZE * 1000);
             try {
-            sendPacket(ackPacket);
-            setState(CONNECTED);
+                sendPacket(ackPacket);
+                setState(CONNECTED);
             } catch (IOException exp) {
                 // TODO: In future?
                 setRemoteAddress(null);
@@ -232,11 +231,6 @@ public class UtpSocketChannelImpl extends UtpSocketChannel {
         short connIdReceiver = (short) (connIdSender + 1);
         setConnectionIdSending(connIdSender);
         setConnectionIdReceiving(connIdReceiver);
-
-    }
-
-    @Override
-    protected void abortImpl() {
     }
 
     @Override
@@ -329,15 +323,13 @@ public class UtpSocketChannelImpl extends UtpSocketChannel {
     }
 
     @Override
-    public UtpCloseFuture close() {
-        abortImpl();
+    public void close() {
         if (isReading()) {
             reader.graceFullInterrupt();
         }
         if (isWriting()) {
             writer.graceFullInterrupt();
         }
-        return null;
     }
 
     @Override
@@ -435,7 +427,6 @@ public class UtpSocketChannelImpl extends UtpSocketChannel {
     public void connectionFailed(IOException exp) {
         setSequenceNumber(DEF_SEQ_START);
         setRemoteAddress(null);
-        abortImpl();
         setState(CLOSED);
         retryConnectionTimeScheduler.shutdown();
         retryConnectionTimeScheduler = null;

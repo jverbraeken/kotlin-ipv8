@@ -27,11 +27,11 @@ import static nl.tudelft.ipv8.messaging.utp.data.bytes.UnsignedTypesUtil.MAX_USH
 public abstract class UtpSocketChannel implements UtpPacketRecievable {
 
     /* Sequencing begin */
-    protected static short DEF_SEQ_START = Short.MIN_VALUE + 1;
+    protected static final short DEF_SEQ_START = Short.MIN_VALUE + 1;
     /* lock for the socket state* */
     protected final ReentrantLock stateLock = new ReentrantLock();
     /* timestamping utility */
-    protected MicroSecondsTimeStamp timeStamper = new MicroSecondsTimeStamp();
+    protected final MicroSecondsTimeStamp timeStamper = new MicroSecondsTimeStamp();
     /*
      * address of the remote sockets which this socket is connected to
      */
@@ -125,7 +125,7 @@ public abstract class UtpSocketChannel implements UtpPacketRecievable {
      * Closes the channel. Also unbinds the socket if the socket is not shared,
      * for example with the server.
      */
-    public abstract UtpCloseFuture close();
+    public abstract void close();
 
     /**
      * @return The Connection ID for Outgoing Packets
@@ -190,9 +190,6 @@ public abstract class UtpSocketChannel implements UtpPacketRecievable {
 
     /* signal the implementation to start the reConnect Timer */
     protected abstract void startConnectionTimeOutCounter(UtpPacket synPacket);
-
-    /* implementation to cancel all operations and close the socket */
-    protected abstract void abortImpl();
 
     /*
      * increments current sequence number unlike TCP, uTp is sequencing its

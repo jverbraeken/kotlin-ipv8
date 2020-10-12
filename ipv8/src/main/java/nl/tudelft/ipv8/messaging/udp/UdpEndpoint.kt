@@ -41,7 +41,7 @@ open class UdpEndpoint(
         })
         utpEndpoint.addListener(object : EndpointListener {
             override fun onPacket(packet: Packet) {
-                logger.debug("Received UTP packet (${packet.data.size} B) from ${packet.source}")
+//                logger.debug("Received UTP packet (${packet.data.size} B) from ${packet.source}")
                 notifyListeners(packet)
             }
 

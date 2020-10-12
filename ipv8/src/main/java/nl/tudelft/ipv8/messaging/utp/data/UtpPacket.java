@@ -247,7 +247,7 @@ public class UtpPacket {
         StringBuilder ret = new StringBuilder("[Type: " + (typeVersion & 0xFF) + "] " +
             "[FirstExt: " + (firstExtension & 0xFF) + "] " +
             "[ConnId: " + connectionId + "] " +
-            "[Wnd: " + (windowSize & 0xFFFFFFFF) + " " +
+            "[Wnd: " + (windowSize) + " " +
             "[Seq: " + sequenceNumber + "] " +
             "[Ack: " + ackNumber + "] ");
 
@@ -262,13 +262,11 @@ public class UtpPacket {
 
     @Override
     public int hashCode() {
-        int code = 0;
         //TB: multiply with prime and xor
         //TODO: check if hashCode is needed
-        code = typeVersion + 10 * firstExtension + 100 * connectionId
+        return typeVersion + 10 * firstExtension + 100 * connectionId
             + 1000 * timestamp + 10000 * timestampDifference + 100000 * windowSize
             + 1000000 * sequenceNumber + 10000000 * ackNumber + 1000000000 * toByteArray().length;
-        return code;
     }
 
 }
