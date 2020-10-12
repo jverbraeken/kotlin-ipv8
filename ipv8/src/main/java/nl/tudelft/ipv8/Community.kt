@@ -5,7 +5,6 @@ import mu.KotlinLogging
 import nl.tudelft.ipv8.keyvault.PrivateKey
 import nl.tudelft.ipv8.messaging.*
 import nl.tudelft.ipv8.messaging.payload.*
-import nl.tudelft.ipv8.messaging.tftp.TFTPCommunity
 import nl.tudelft.ipv8.peerdiscovery.Network
 import nl.tudelft.ipv8.peerdiscovery.WanEstimationLog
 import nl.tudelft.ipv8.util.addressIsLan
@@ -13,7 +12,7 @@ import nl.tudelft.ipv8.util.hexToBytes
 import java.util.*
 import kotlin.random.Random
 
-private val logger = KotlinLogging.logger {}
+private val logger = KotlinLogging.logger("Community")
 
 abstract class Community : Overlay {
     protected val prefix: ByteArray
@@ -103,7 +102,6 @@ abstract class Community : Overlay {
                 return
             }
         }
-
         val packet = createIntroductionRequest(address)
         send(address, packet)
     }
@@ -253,7 +251,7 @@ abstract class Community : Overlay {
         peer: Peer = myPeer,
         prefix: ByteArray = this.prefix,
         encrypt: Boolean = false,
-        recipient: Peer? = null
+        recipient: Peer? = null, logging: Boolean = false
     ): ByteArray {
         val payloads = mutableListOf<Serializable>()
         if (sign) {
@@ -261,15 +259,7 @@ abstract class Community : Overlay {
         }
         payloads += GlobalTimeDistributionPayload(claimGlobalTime())
         payloads += payload
-        return serializePacket(
-            messageId,
-            payloads,
-            sign,
-            peer,
-            prefix,
-            encrypt,
-            recipient
-        )
+        return serializePacket(messageId, payloads, sign, peer, prefix, encrypt, recipient, logging)
     }
 
     /**
@@ -287,7 +277,7 @@ abstract class Community : Overlay {
         peer: Peer = myPeer,
         prefix: ByteArray = this.prefix,
         encrypt: Boolean = false,
-        recipient: Peer? = null
+        recipient: Peer? = null, logging: Boolean = false
     ): ByteArray {
         var packet = prefix
         packet += messageId.toChar().toByte()
@@ -298,9 +288,15 @@ abstract class Community : Overlay {
 
         for ((index, item) in payload.withIndex()) {
             val serialized = item.serialize()
+            if (logging) {
+                logger.debug { "serialized packet = ${serialized.joinToString(", ")}" }
+            }
             // Encrypt the main payload if we can
             packet += if (index == payload.size - 1 && encrypt && recipient != null) {
                 val encrypted = recipient.publicKey.encrypt(serialized)
+                if (logging) {
+                    logger.debug { "serialized packet encrypted = ${encrypted.joinToString(", ")}" }
+                }
                 encrypted
             } else {
                 serialized
@@ -327,7 +323,7 @@ abstract class Community : Overlay {
 
     internal fun onIntroductionResponsePacket(packet: Packet) {
         val (peer, payload) =
-            packet.getAuthPayload(IntroductionResponsePayload.Deserializer)
+            packet.getAuthPayload(IntroductionResponsePayload.Deserializer, true)
         onIntroductionResponse(peer, payload)
     }
 
@@ -474,7 +470,7 @@ abstract class Community : Overlay {
         endpoint.send(verifiedPeer ?: peer, data)
     }
 
-    protected fun send(address: Address, data: ByteArray) {
+    protected open fun send(address: Address, data: ByteArray) {
         val probablePeer = network.getVerifiedByAddress(address)
         if (probablePeer != null) {
             probablePeer.lastRequest = Date()
