@@ -16,15 +16,14 @@ import nl.tudelft.ipv8.messaging.utp.data.UtpPacket;
 import static nl.tudelft.ipv8.messaging.utp.data.UtpPacketUtils.extractUtpPacket;
 
 public class UtpWritingRunnable extends Thread implements Runnable {
-
-    private ByteBuffer buffer;
+    private final ByteBuffer buffer;
+    private final UtpSocketChannelImpl channel;
+    private final UtpAlgorithm algorithm;
+    private final MicroSecondsTimeStamp timeStamper;
+    private final UtpWriteFutureImpl future;
     private volatile boolean graceFullInterrupt;
-    private UtpSocketChannelImpl channel;
     private boolean isRunning = false;
-    private UtpAlgorithm algorithm;
     private IOException possibleException = null;
-    private MicroSecondsTimeStamp timeStamper;
-    private UtpWriteFutureImpl future;
 
     public UtpWritingRunnable(UtpSocketChannelImpl channel, ByteBuffer buffer, MicroSecondsTimeStamp timeStamper, UtpWriteFutureImpl future) {
         this.buffer = buffer;
@@ -44,19 +43,26 @@ public class UtpWritingRunnable extends Thread implements Runnable {
         IOException possibleExp = null;
         boolean exceptionOccurred = false;
         while (continueSending()) {
-            UTPWritingRunnableLoggerKt.getLogger().debug("New iteration: " + buffer.position());
-            if (!checkForAcks()) {
-                UTPWritingRunnableLoggerKt.getLogger().debug("No acks");
-                graceFullInterrupt = true;
-                break;
-            }
-            UTPWritingRunnableLoggerKt.getLogger().debug("Acks found");
+            try {
+                UTPWritingRunnableLoggerKt.getLogger().debug("New iteration: " + buffer.position());
+                if (!checkForAcks()) {
+                    UTPWritingRunnableLoggerKt.getLogger().debug("No acks");
+                    graceFullInterrupt = true;
+                    break;
+                }
+                UTPWritingRunnableLoggerKt.getLogger().debug("Acks found");
 
-            Queue<DatagramPacket> packetsToResend = algorithm.getPacketsToResend();
-            for (DatagramPacket datagramPacket : packetsToResend) {
-                datagramPacket.setSocketAddress(channel.getRemoteAdress());
-                channel.sendPacket(datagramPacket);
-                UTPWritingRunnableLoggerKt.getLogger().debug("Resent packet: " + extractUtpPacket(datagramPacket).getSequenceNumber());
+                Queue<DatagramPacket> packetsToResend = algorithm.getPacketsToResend();
+                for (DatagramPacket datagramPacket : packetsToResend) {
+                    datagramPacket.setSocketAddress(channel.getRemoteAdress());
+                    channel.sendPacket(datagramPacket);
+                    UTPWritingRunnableLoggerKt.getLogger().debug("Resent packet: " + extractUtpPacket(datagramPacket).getSequenceNumber());
+                }
+            } catch (IOException exp) {
+                exp.printStackTrace();
+                graceFullInterrupt = true;
+                possibleExp = exp;
+                break;
             }
 
             if (algorithm.isTimedOut()) {
@@ -66,8 +72,14 @@ public class UtpWritingRunnable extends Thread implements Runnable {
                 exceptionOccurred = true;
             }
             while (algorithm.canSendNextPacket() && !exceptionOccurred && !graceFullInterrupt && buffer.hasRemaining()) {
-                DatagramPacket packet = getNextPacket();
-                channel.sendPacket(packet);
+                try {
+                    channel.sendPacket(getNextPacket());
+                } catch (IOException exp) {
+                    exp.printStackTrace();
+                    graceFullInterrupt = true;
+                    possibleExp = exp;
+                    break;
+                }
             }
             updateFuture();
         }

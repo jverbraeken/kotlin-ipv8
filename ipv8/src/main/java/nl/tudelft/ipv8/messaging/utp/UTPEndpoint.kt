@@ -13,7 +13,6 @@ import nl.tudelft.ipv8.messaging.utp.channels.UtpSocketState
 import nl.tudelft.ipv8.messaging.utp.channels.futures.UtpReadFuture
 import nl.tudelft.ipv8.messaging.utp.channels.impl.receive.ConnectionIdTriplet
 import nl.tudelft.ipv8.messaging.utp.data.UtpPacketUtils
-import nl.tudelft.ipv8.messaging.utp.data.logger
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.net.DatagramPacket
@@ -25,7 +24,7 @@ import java.util.zip.GZIPInputStream
 import java.util.zip.GZIPOutputStream
 
 
-private val logger = KotlinLogging.logger {}
+val logger = KotlinLogging.logger {}
 
 class UTPEndpoint : Endpoint<IPv4Address>() {
     var socket: DatagramSocket? = null
@@ -75,7 +74,7 @@ class UTPEndpoint : Endpoint<IPv4Address>() {
         val unwrappedData = packet.data.copyOfRange(1, packet.length)
         packet.data = unwrappedData
         val utpPacket = UtpPacketUtils.extractUtpPacket(packet)
-        logger.debug("Received UTP packet from ${packet.address.hostAddress}:${packet.port}, seq=" + utpPacket.sequenceNumber + ", ack=" + utpPacket.ackNumber)
+//        logger.debug("Received UTP packet from ${packet.address.hostAddress}:${packet.port}, seq=" + utpPacket.sequenceNumber + ", ack=" + utpPacket.ackNumber)
 
         if (UtpPacketUtils.isSynPkt(packet)) {
             logger.debug { "syn received" }
@@ -96,8 +95,7 @@ class UTPEndpoint : Endpoint<IPv4Address>() {
 
             val readFuture: UtpReadFuture = channel.read { data: ByteArray ->
                 val sourceAddress = IPv4Address(packet.address.hostAddress, packet.port)
-                logger.debug("Received UTP file (${data.size} B) from $sourceAddress")
-                logger.debug { "Data ${data.size}" }
+                logger.debug("Received UTP file (${data.size} B) from $sourceAddress, size=${data.size}")
                 var uncompressedData: ByteArray? = null
                 ByteArrayInputStream(data).use { stream ->
                     GZIPInputStream(stream).use { stream2 ->

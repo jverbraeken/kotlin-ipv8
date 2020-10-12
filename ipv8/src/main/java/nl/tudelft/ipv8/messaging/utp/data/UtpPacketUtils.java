@@ -70,13 +70,10 @@ public class UtpPacketUtils {
     }
 
     public static boolean isSynPkt(UtpPacket packet) {
-
         if (packet == null) {
             return false;
         }
-
         return packet.getTypeVersion() == SYN;
-
     }
 
 

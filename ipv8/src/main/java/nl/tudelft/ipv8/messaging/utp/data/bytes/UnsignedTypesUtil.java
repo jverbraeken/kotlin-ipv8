@@ -26,7 +26,7 @@ public final class UnsignedTypesUtil {
         } else if (longvalue < 0) {
             throw new SignedNumberException(getExceptionText(MAX_UINT, longvalue));
         }
-        return (int) (longvalue & 0xFFFFFFFF);
+        return (int) (longvalue);
     }
 
     private static String getExceptionText(long max, long actual) {

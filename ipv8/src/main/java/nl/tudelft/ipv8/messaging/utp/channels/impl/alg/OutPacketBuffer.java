@@ -12,11 +12,11 @@ import nl.tudelft.ipv8.messaging.utp.data.UtpPacketUtils;
 import nl.tudelft.ipv8.messaging.utp.data.bytes.UnsignedTypesUtil;
 
 public class OutPacketBuffer {
-    private static int size = 3000;
-    private ArrayList<UtpTimestampedPacketDTO> buffer = new ArrayList<>(size);
+    private static final int size = 3000;
+    private final ArrayList<UtpTimestampedPacketDTO> buffer = new ArrayList<>(size);
+    private final MicroSecondsTimeStamp timeStamper;
     private int bytesOnFly = 0;
     private long resendTimeOutMicros;
-    private MicroSecondsTimeStamp timeStamper;
     private SocketAddress address;
     private long currentTime;
 
