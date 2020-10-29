@@ -386,7 +386,7 @@ abstract class Community : Overlay {
 
         // Process introduced addresses
         if (!payload.wanIntroductionAddress.isEmpty() &&
-            payload.wanIntroductionAddress.ip != myEstimatedWan.ip) {
+            payload.wanIntroductionAddress != myEstimatedWan) {
             // WAN is not empty and it is not same as ours
 
             if (!payload.lanIntroductionAddress.isEmpty()) {

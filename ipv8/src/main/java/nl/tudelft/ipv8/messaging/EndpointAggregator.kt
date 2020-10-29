@@ -5,6 +5,7 @@ import nl.tudelft.ipv8.Peer
 import nl.tudelft.ipv8.messaging.bluetooth.BluetoothAddress
 import nl.tudelft.ipv8.messaging.bluetooth.BluetoothEndpoint
 import nl.tudelft.ipv8.messaging.udp.UdpEndpoint
+import nl.tudelft.ipv8.peerdiscovery.Network
 import java.util.*
 
 /**

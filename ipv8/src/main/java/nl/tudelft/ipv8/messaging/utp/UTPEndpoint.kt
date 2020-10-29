@@ -24,7 +24,7 @@ import java.util.zip.GZIPInputStream
 import java.util.zip.GZIPOutputStream
 
 
-val logger = KotlinLogging.logger {}
+private val logger = KotlinLogging.logger {}
 
 class UTPEndpoint : Endpoint<IPv4Address>() {
     var socket: DatagramSocket? = null
