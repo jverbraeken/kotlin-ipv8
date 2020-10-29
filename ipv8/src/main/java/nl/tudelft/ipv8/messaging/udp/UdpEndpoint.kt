@@ -10,6 +10,7 @@ import nl.tudelft.ipv8.messaging.EndpointListener
 import nl.tudelft.ipv8.messaging.Packet
 import nl.tudelft.ipv8.messaging.tftp.TFTPEndpoint
 import nl.tudelft.ipv8.messaging.utp.UTPEndpoint
+import nl.tudelft.ipv8.peerdiscovery.Network
 import java.io.IOException
 import java.net.*
 
@@ -22,6 +23,7 @@ open class UdpEndpoint(
     private val utpEndpoint: UTPEndpoint = UTPEndpoint()
 ) : Endpoint<Peer>() {
     private var socket: DatagramSocket? = null
+    private lateinit var network: Network
 
     private val job = SupervisorJob()
     private val scope = CoroutineScope(Dispatchers.IO + job)
@@ -79,7 +81,12 @@ open class UdpEndpoint(
 
     fun send(address: IPv4Address, data: ByteArray) = scope.launch(Dispatchers.IO) {
         try {
-            val datagramPacket = DatagramPacket(data, data.size, address.toSocketAddress())
+            val toAddress: IPv4Address = if (address.ip == network.wanLog.estimateWan()?.ip ?: IPv4Address.EMPTY) {
+                IPv4Address("10.0.2.2", address.port)
+            } else {
+                address
+            }
+            val datagramPacket = DatagramPacket(data, data.size, toAddress.toSocketAddress())
             socket?.send(datagramPacket)
         } catch (e: Exception) {
             logger.error("Sending DatagramPacket failed", e)
@@ -140,6 +147,10 @@ open class UdpEndpoint(
                 delay(60_000)
             }
         }
+    }
+
+    fun setNetwork(network: Network) {
+        this.network = network
     }
 
     private fun estimateLan() {

@@ -40,6 +40,7 @@ class IPv8(
         isStarted = true
 
         endpoint.open()
+        endpoint.udpEndpoint!!.setNetwork(network)
 
         // Init overlays and discovery strategies
         for (overlayConfiguration in configuration.overlays) {
