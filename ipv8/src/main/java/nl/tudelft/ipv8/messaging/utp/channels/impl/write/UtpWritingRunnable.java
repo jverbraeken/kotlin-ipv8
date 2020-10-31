@@ -168,7 +168,7 @@ public class UtpWritingRunnable extends Thread implements Runnable {
     }
 
     private boolean continueSending() {
-        UTPWritingRunnableLoggerKt.getLogger().debug("" + (!graceFullInterrupt && !allPacketsAckedSendAndAcked()) + ".... <=" + graceFullInterrupt + ", " + allPacketsAckedSendAndAcked());
+        UTPWritingRunnableLoggerKt.getLogger().debug("Continue sending: " + (!graceFullInterrupt && !allPacketsAckedSendAndAcked()) + " <=" + graceFullInterrupt + ", " + allPacketsAckedSendAndAcked());
         return !graceFullInterrupt && !allPacketsAckedSendAndAcked();
     }
 

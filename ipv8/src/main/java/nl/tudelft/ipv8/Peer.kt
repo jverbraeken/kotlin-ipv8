@@ -46,7 +46,12 @@ data class Peer(
     /**
      * True if this peer signals support for UTP.
      */
-    var supportsUTP: Boolean = false
+    var supportsUTP: Boolean = false,
+
+    /**
+     * True if this peer signals support for FastTFTP.
+     */
+    var supportsFastTFTP: Boolean = false
 ) {
     private var _lamportTimestamp = 0uL
     val lamportTimestamp: ULong

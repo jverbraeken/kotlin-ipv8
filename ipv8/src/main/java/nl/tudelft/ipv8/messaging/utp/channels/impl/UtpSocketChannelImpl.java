@@ -16,7 +16,6 @@ import java.util.function.Consumer;
 
 import nl.tudelft.ipv8.messaging.utp.channels.UtpSocketChannel;
 import nl.tudelft.ipv8.messaging.utp.channels.UtpSocketState;
-import nl.tudelft.ipv8.messaging.utp.channels.futures.UtpCloseFuture;
 import nl.tudelft.ipv8.messaging.utp.channels.futures.UtpWriteFuture;
 import nl.tudelft.ipv8.messaging.utp.channels.impl.alg.UtpAlgConfiguration;
 import nl.tudelft.ipv8.messaging.utp.channels.impl.conn.ConnectionTimeOutRunnable;
@@ -227,7 +226,7 @@ public class UtpSocketChannelImpl extends UtpSocketChannel {
     }
 
     private void setConnectionIdsFromPacket(UtpPacket utpPacket) {
-        short connIdSender = (short) utpPacket.getConnectionId();
+        short connIdSender = utpPacket.getConnectionId();
         short connIdReceiver = (short) (connIdSender + 1);
         setConnectionIdSending(connIdSender);
         setConnectionIdReceiving(connIdReceiver);
@@ -414,8 +413,8 @@ public class UtpSocketChannelImpl extends UtpSocketChannel {
             .newSingleThreadScheduledExecutor();
         ConnectionTimeOutRunnable runnable = new ConnectionTimeOutRunnable(synPacket, this);
         retryConnectionTimeScheduler.scheduleWithFixedDelay(runnable,
-            UtpAlgConfiguration.CONNECTION_ATTEMPT_INTERVALL_MILLIS,
-            UtpAlgConfiguration.CONNECTION_ATTEMPT_INTERVALL_MILLIS,
+            UtpAlgConfiguration.CONNECTION_ATTEMPT_INTERVAL_MILLIS,
+            UtpAlgConfiguration.CONNECTION_ATTEMPT_INTERVAL_MILLIS,
             TimeUnit.MILLISECONDS);
     }
 

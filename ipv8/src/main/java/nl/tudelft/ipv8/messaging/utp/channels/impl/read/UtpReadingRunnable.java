@@ -78,7 +78,7 @@ public class UtpReadingRunnable extends Thread implements Runnable {
                     UTPReadingRunnableLoggerKt.getLogger().debug("Timed out");
                     if (!hasSkippedPackets()) {
                         gotLastPacket = true;
-                        UTPReadingRunnableLoggerKt.getLogger().debug("ENDING READING, NO MORE incoming DATA");
+                        UTPReadingRunnableLoggerKt.getLogger().debug("ENDING READING, NO MORE INCOMING DATA");
                     } else {
                         UTPReadingRunnableLoggerKt.getLogger().debug("now: " + nowTimeStamp + " last: " + lastPackedReceived + " = " + (nowTimeStamp - lastPackedReceived));
                         UTPReadingRunnableLoggerKt.getLogger().debug("now: " + nowTimeStamp + " start: " + startReadingTimeStamp + " = " + (nowTimeStamp - startReadingTimeStamp));
