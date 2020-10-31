@@ -8,6 +8,7 @@ import nl.tudelft.ipv8.Peer
 import nl.tudelft.ipv8.messaging.Endpoint
 import nl.tudelft.ipv8.messaging.EndpointListener
 import nl.tudelft.ipv8.messaging.Packet
+import nl.tudelft.ipv8.messaging.fasttftp.FastTFTPEndpoint
 import nl.tudelft.ipv8.messaging.tftp.TFTPEndpoint
 import nl.tudelft.ipv8.messaging.utp.UTPEndpoint
 import nl.tudelft.ipv8.peerdiscovery.Network
@@ -20,7 +21,8 @@ open class UdpEndpoint(
     private val port: Int,
     private val ip: InetAddress,
     private val tftpEndpoint: TFTPEndpoint = TFTPEndpoint(),
-    private val utpEndpoint: UTPEndpoint = UTPEndpoint()
+    private val utpEndpoint: UTPEndpoint = UTPEndpoint(),
+    private val fastTftpEndpoint: FastTFTPEndpoint = FastTFTPEndpoint()
 ) : Endpoint<Peer>() {
     private var socket: DatagramSocket? = null
     private lateinit var network: Network
@@ -35,6 +37,17 @@ open class UdpEndpoint(
         tftpEndpoint.addListener(object : EndpointListener {
             override fun onPacket(packet: Packet) {
                 logger.debug("Received TFTP packet (${packet.data.size} B) from ${packet.source}")
+                notifyListeners(packet)
+            }
+
+            override fun onEstimatedLanChanged(address: IPv4Address) {
+            }
+        })
+        fastTftpEndpoint.addListener(object : EndpointListener {
+            override fun onPacket(packet: Packet) {
+                logger.debug(
+                    "Received FastTFTP packet (${packet.data.size} B) from ${packet.source}"
+                )
                 notifyListeners(packet)
             }
 
@@ -67,6 +80,7 @@ open class UdpEndpoint(
                 if (data.size > UDP_PAYLOAD_LIMIT) {
                     when {
                         peer.supportsUTP -> utpEndpoint.send(address, data)
+                        peer.supportsFastTFTP -> fastTftpEndpoint.send(address, data)
                         peer.supportsTFTP -> tftpEndpoint.send(address, data)
                         else -> logger.warn { "The packet is larger then UDP_PAYLOAD_LIMIT and the peer does not support TFTP" }
                     }
@@ -99,6 +113,9 @@ open class UdpEndpoint(
 
         tftpEndpoint.socket = socket
         tftpEndpoint.open()
+
+        fastTftpEndpoint.socket = socket
+        fastTftpEndpoint.open()
 
         utpEndpoint.socket = socket
         utpEndpoint.open()
@@ -134,6 +151,7 @@ open class UdpEndpoint(
         bindJob = null
 
         tftpEndpoint.close()
+        fastTftpEndpoint.close()
         utpEndpoint.close()
 
         socket?.close()
@@ -209,6 +227,9 @@ open class UdpEndpoint(
             }
             TFTPEndpoint.PREFIX_TFTP -> {
                 tftpEndpoint.onPacket(receivePacket)
+            }
+            FastTFTPEndpoint.PREFIX_FASTTFTP -> {
+                fastTftpEndpoint.onPacket(receivePacket)
             }
             UTPEndpoint.PREFIX_UTP -> {
                 utpEndpoint.onPacket(receivePacket)

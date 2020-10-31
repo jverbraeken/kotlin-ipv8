@@ -3,7 +3,7 @@ package nl.tudelft.ipv8.messaging.utp.channels.impl.alg;
 public class UtpAlgConfiguration {
 
     public static final int MAX_CONNECTION_ATTEMPTS = 5;
-    public static final int CONNECTION_ATTEMPT_INTERVALL_MILLIS = 5000;
+    public static final int CONNECTION_ATTEMPT_INTERVAL_MILLIS = 5000;
 
     public static final long MINIMUM_DELTA_TO_MAX_WINDOW_MICROS = 1000000;
     // ack every second packets

@@ -1,9 +1,6 @@
 package nl.tudelft.ipv8.messaging.utp
 
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
 import mu.KotlinLogging
 import nl.tudelft.ipv8.IPv4Address
 import nl.tudelft.ipv8.messaging.Endpoint
@@ -74,13 +71,15 @@ class UTPEndpoint : Endpoint<IPv4Address>() {
         val unwrappedData = packet.data.copyOfRange(1, packet.length)
         packet.data = unwrappedData
         val utpPacket = UtpPacketUtils.extractUtpPacket(packet)
-//        logger.debug("Received UTP packet from ${packet.address.hostAddress}:${packet.port}, seq=" + utpPacket.sequenceNumber + ", ack=" + utpPacket.ackNumber)
+        logger.debug("Received UTP packet. connectionId = ${utpPacket.connectionId}, seq=" + utpPacket.sequenceNumber + ", ack=" + utpPacket.ackNumber)
 
         if (UtpPacketUtils.isSynPkt(packet)) {
             logger.debug { "syn received" }
             synReceived(packet)
         } else {
-            connectionIds[utpPacket.connectionId]!!.channel!!.receivePacket(packet)
+            val connectionId = connectionIds[utpPacket.connectionId]!!
+            val channel = connectionId.channel!!
+            channel.receivePacket(packet)
         }
     }
 
@@ -105,9 +104,11 @@ class UTPEndpoint : Endpoint<IPv4Address>() {
                 notifyListeners(Packet(sourceAddress, uncompressedData!!))
             }
             scope.launch {
-                logger.debug("Blocking readFuture")
-                readFuture.block()
-                logger.debug("Done blocking readFuture")
+                withContext(Dispatchers.IO) {
+                    logger.debug("Blocking readFuture")
+                    readFuture.block()
+                    logger.debug("Done blocking readFuture")
+                }
             }
         }
     }
@@ -128,6 +129,7 @@ class UTPEndpoint : Endpoint<IPv4Address>() {
     }
 
     private fun registerChannel(channel: UtpSocketChannel): Boolean {
+        logger.debug { "Registering channel with connectionId = ${channel.connectionIdReceiving}" }
         val triplet =
             ConnectionIdTriplet(channel, channel.connectionIdReceiving, channel.connectionIdSending)
         if (isChannelRegistrationNecessary(channel)) {
@@ -149,14 +151,13 @@ class UTPEndpoint : Endpoint<IPv4Address>() {
     }
 
     override fun isOpen(): Boolean {
-        TODO("Not yet implemented")
+        return false
     }
 
     override fun open() {
     }
 
     override fun close() {
-        TODO("Not yet implemented")
     }
 
     companion object {
