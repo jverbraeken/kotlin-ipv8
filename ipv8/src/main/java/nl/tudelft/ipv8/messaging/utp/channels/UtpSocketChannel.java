@@ -9,7 +9,6 @@ import java.util.Random;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 
-import nl.tudelft.ipv8.messaging.utp.channels.futures.UtpCloseFuture;
 import nl.tudelft.ipv8.messaging.utp.channels.futures.UtpConnectFuture;
 import nl.tudelft.ipv8.messaging.utp.channels.futures.UtpReadFuture;
 import nl.tudelft.ipv8.messaging.utp.channels.futures.UtpWriteFuture;
@@ -84,7 +83,6 @@ public abstract class UtpSocketChannel implements UtpPacketRecievable {
             try {
                 /* fill packet, set initial variables and send packet */
                 setRemoteAddress(address);
-                setupConnectionId();
                 setSequenceNumber(DEF_SEQ_START);
 
                 UtpPacket synPacket = UtpPacketUtils.createSynPacket();
@@ -217,7 +215,7 @@ public abstract class UtpSocketChannel implements UtpPacketRecievable {
     /*
      * sets up connection ids. incoming = rnd outgoing = incoming + 1
      */
-    private void setupConnectionId() {
+    public void setupConnectionId() {
         Random rnd = new Random();
         int max = (int) (MAX_USHORT - 1);
         short rndInt = (short) (rnd.nextInt(max) + Short.MIN_VALUE);

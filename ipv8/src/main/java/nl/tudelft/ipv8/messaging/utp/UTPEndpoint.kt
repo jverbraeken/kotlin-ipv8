@@ -16,7 +16,7 @@ import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetSocketAddress
 import java.nio.ByteBuffer
-import java.util.*
+import java.util.concurrent.ConcurrentHashMap
 import java.util.zip.GZIPInputStream
 import java.util.zip.GZIPOutputStream
 
@@ -26,7 +26,7 @@ private val logger = KotlinLogging.logger {}
 class UTPEndpoint : Endpoint<IPv4Address>() {
     var socket: DatagramSocket? = null
 
-    private val connectionIds: MutableMap<Short, ConnectionIdTriplet> = HashMap()
+    private val connectionIds: MutableMap<Short, ConnectionIdTriplet> = ConcurrentHashMap()
 
     private val job = SupervisorJob()
     private val scope = CoroutineScope(Dispatchers.IO + job)
@@ -48,8 +48,9 @@ class UTPEndpoint : Endpoint<IPv4Address>() {
                 logger.debug { "Opening channel" }
                 val channel = UtpSocketChannel.open(socket!!)
                 logger.debug { "Connecting to channel" }
-                val cFuture = channel.connect(InetSocketAddress(peer.ip, peer.port))
+                channel.setupConnectionId()
                 registerChannel(channel)
+                val cFuture = channel.connect(InetSocketAddress(peer.ip, peer.port))
                 logger.debug { "Blocking" }
                 cFuture.block()
                 logger.debug { "Writing" }
@@ -133,8 +134,11 @@ class UTPEndpoint : Endpoint<IPv4Address>() {
         val triplet =
             ConnectionIdTriplet(channel, channel.connectionIdReceiving, channel.connectionIdSending)
         if (isChannelRegistrationNecessary(channel)) {
+            logger.debug { "Channel registration was necessary" }
             connectionIds[channel.connectionIdReceiving] = triplet
             return true
+        } else {
+            logger.debug { "Channel registration was NOT necessary" }
         }
 
         /* Connection id collision found or not been able to ack.
