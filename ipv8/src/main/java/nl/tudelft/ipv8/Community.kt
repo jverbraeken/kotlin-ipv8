@@ -251,7 +251,8 @@ abstract class Community : Overlay {
         peer: Peer = myPeer,
         prefix: ByteArray = this.prefix,
         encrypt: Boolean = false,
-        recipient: Peer? = null, logging: Boolean = false
+        recipient: Peer? = null,
+        logging: Boolean = false
     ): ByteArray {
         val payloads = mutableListOf<Serializable>()
         if (sign) {
@@ -277,7 +278,8 @@ abstract class Community : Overlay {
         peer: Peer = myPeer,
         prefix: ByteArray = this.prefix,
         encrypt: Boolean = false,
-        recipient: Peer? = null, logging: Boolean = false
+        recipient: Peer? = null,
+        logging: Boolean = false
     ): ByteArray {
         var packet = prefix
         packet += messageId.toChar().toByte()

@@ -44,7 +44,6 @@ public class UtpWritingRunnable extends Thread implements Runnable {
         boolean exceptionOccurred = false;
         while (continueSending()) {
             try {
-                UTPWritingRunnableLoggerKt.getLogger().debug("New iteration: " + buffer.position());
                 if (!checkForAcks()) {
                     UTPWritingRunnableLoggerKt.getLogger().debug("No acks");
                     graceFullInterrupt = true;
@@ -112,27 +111,24 @@ public class UtpWritingRunnable extends Thread implements Runnable {
         long waitingTimeMicros = algorithm.getWaitingTimeMicroSeconds();
         UTPWritingRunnableLoggerKt.getLogger().debug("1");
         UtpTimestampedPacketDTO temp = queue.poll(waitingTimeMicros, TimeUnit.MICROSECONDS);
-        UTPWritingRunnableLoggerKt.getLogger().debug("2");
         if (temp != null) {
-            UTPWritingRunnableLoggerKt.getLogger().debug("3");
+            UTPWritingRunnableLoggerKt.getLogger().debug("2");
             algorithm.ackReceived(temp);
             algorithm.removeAcked();
-            UTPWritingRunnableLoggerKt.getLogger().debug("4");
             if (queue.peek() != null) {
                 processAcks(queue);
             }
-            UTPWritingRunnableLoggerKt.getLogger().debug("5");
+            UTPWritingRunnableLoggerKt.getLogger().debug("3");
         }
     }
 
     private void processAcks(BlockingQueue<UtpTimestampedPacketDTO> queue) {
         UtpTimestampedPacketDTO pair;
-        UTPWritingRunnableLoggerKt.getLogger().debug("6");
+        UTPWritingRunnableLoggerKt.getLogger().debug("4");
         while ((pair = queue.poll()) != null) {
-            UTPWritingRunnableLoggerKt.getLogger().debug("7");
+            UTPWritingRunnableLoggerKt.getLogger().debug("5");
             algorithm.ackReceived(pair);
             algorithm.removeAcked();
-            UTPWritingRunnableLoggerKt.getLogger().debug("8");
         }
     }
 
