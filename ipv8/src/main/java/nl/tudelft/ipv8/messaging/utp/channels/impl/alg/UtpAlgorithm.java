@@ -393,11 +393,7 @@ public class UtpAlgorithm {
      * returns true when a socket timeout happened. (the receiver does not answer anymore)
      */
     public boolean isTimedOut() {
-        if (timeStampNow - lastAckReceived > getTimeOutMicros() * 5 && lastAckReceived != 0) {
-            UTPAlgorithmLoggerKt.getLogger().debug("Timed out!");
-            return true;
-        }
-        return false;
+        return timeStampNow - lastAckReceived > getTimeOutMicros() * 5 && lastAckReceived != 0;
     }
 
     public void setByteBuffer(ByteBuffer bBuffer) {

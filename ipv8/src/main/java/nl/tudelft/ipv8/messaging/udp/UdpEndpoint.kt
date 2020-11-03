@@ -26,6 +26,7 @@ open class UdpEndpoint(
 ) : Endpoint<Peer>() {
     private var socket: DatagramSocket? = null
     private lateinit var network: Network
+    private var wan: IPv4Address? = null
 
     private val job = SupervisorJob()
     private val scope = CoroutineScope(Dispatchers.IO + job)
@@ -72,7 +73,14 @@ open class UdpEndpoint(
     override fun send(peer: Peer, data: ByteArray) {
         if (!isOpen()) throw IllegalStateException("UDP socket is closed")
 
-        val address = peer.address
+        if (wan == null) {
+            wan = network.wanLog.estimateWan()
+        }
+        val address = if (peer.address.ip == wan?.ip ?: IPv4Address.EMPTY) {
+            IPv4Address("10.0.2.2", peer.address.port)
+        } else {
+            peer.address
+        }
 
         scope.launch {
 //            logger.debug("Send packet (${data.size} B) to $address ($peer)")
@@ -193,15 +201,13 @@ open class UdpEndpoint(
         return socket?.localPort ?: port
     }
 
-    private fun bindSocket(socket: DatagramSocket) = scope.launch {
+    private fun bindSocket(socket: DatagramSocket) = scope.launch(Dispatchers.IO) {
         while (true) {
             try {
                 val receiveData = ByteArray(UDP_PAYLOAD_LIMIT)
                 while (isActive) {
                     val receivePacket = DatagramPacket(receiveData, receiveData.size)
-                    withContext(Dispatchers.IO) {
-                        socket.receive(receivePacket)
-                    }
+                    socket.receive(receivePacket)
                     handleReceivedPacket(receivePacket)
                 }
             } catch (e: IOException) {

@@ -7,6 +7,7 @@ import java.util.Queue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
 
+import nl.tudelft.ipv8.messaging.utp.channels.impl.UTPSocketChannelImplLoggerKt;
 import nl.tudelft.ipv8.messaging.utp.channels.impl.UtpSocketChannelImpl;
 import nl.tudelft.ipv8.messaging.utp.channels.impl.UtpTimestampedPacketDTO;
 import nl.tudelft.ipv8.messaging.utp.channels.impl.alg.UtpAlgorithm;
@@ -23,7 +24,6 @@ public class UtpWritingRunnable extends Thread implements Runnable {
     private final UtpWriteFutureImpl future;
     private volatile boolean graceFullInterrupt;
     private boolean isRunning = false;
-    private IOException possibleException = null;
 
     public UtpWritingRunnable(UtpSocketChannelImpl channel, ByteBuffer buffer, MicroSecondsTimeStamp timeStamper, UtpWriteFutureImpl future) {
         this.buffer = buffer;
@@ -45,11 +45,10 @@ public class UtpWritingRunnable extends Thread implements Runnable {
         while (continueSending()) {
             try {
                 if (!checkForAcks()) {
-                    UTPWritingRunnableLoggerKt.getLogger().debug("No acks");
+                    UTPWritingRunnableLoggerKt.getLogger().debug("Interruption...");
                     graceFullInterrupt = true;
                     break;
                 }
-                UTPWritingRunnableLoggerKt.getLogger().debug("Acks found");
 
                 Queue<DatagramPacket> packetsToResend = algorithm.getPacketsToResend();
                 for (DatagramPacket datagramPacket : packetsToResend) {
@@ -69,6 +68,7 @@ public class UtpWritingRunnable extends Thread implements Runnable {
                 graceFullInterrupt = true;
                 possibleExp = new IOException("timed out");
                 exceptionOccurred = true;
+//                throw new IllegalArgumentException("Timed out");
             }
             while (algorithm.canSendNextPacket() && !exceptionOccurred && !graceFullInterrupt && buffer.hasRemaining()) {
                 try {
@@ -83,13 +83,12 @@ public class UtpWritingRunnable extends Thread implements Runnable {
             updateFuture();
         }
 
-        if (possibleExp != null) {
-            exceptionOccurred(possibleExp);
+        if (!exceptionOccurred) {
+            isRunning = false;
+            future.finished(possibleExp, buffer.position());
+            UTPWritingRunnableLoggerKt.getLogger().debug("WRITER OUT");
+            channel.removeWriter();
         }
-        isRunning = false;
-        future.finished(possibleExp, buffer.position());
-        UTPWritingRunnableLoggerKt.getLogger().debug("WRITER OUT");
-        channel.removeWriter();
     }
 
     private void updateFuture() {
@@ -149,18 +148,10 @@ public class UtpWritingRunnable extends Thread implements Runnable {
         utpPacket.setWindowSize(leftInBuffer);
         byte[] utpPacketBytes = utpPacket.toByteArray();
         UTPWritingRunnableLoggerKt.getLogger().debug("Sending next packet: " + utpPacket.getSequenceNumber());
+        UTPSocketChannelImplLoggerKt.getLogger().debug("remoteAddress is: " + channel.getRemoteAdress().toString());
         DatagramPacket udpPacket = new DatagramPacket(utpPacketBytes, utpPacketBytes.length, channel.getRemoteAdress());
         algorithm.markPacketOnfly(utpPacket, udpPacket);
         return udpPacket;
-    }
-
-
-    private void exceptionOccurred(IOException exp) {
-        possibleException = exp;
-    }
-
-    public IOException getException() {
-        return possibleException;
     }
 
     private boolean continueSending() {

@@ -44,6 +44,7 @@ public class UtpReadingRunnable extends Thread implements Runnable {
     public void run() {
         UTPReadingRunnableLoggerKt.getLogger().debug("Starting reading");
         isRunning = true;
+        boolean error = false;
         IOException exp = null;
         BlockingQueue<UtpTimestampedPacketDTO> queue = channel.getReadingQueue();
         while (continueReading()) {
@@ -78,12 +79,14 @@ public class UtpReadingRunnable extends Thread implements Runnable {
                     UTPReadingRunnableLoggerKt.getLogger().debug("Timed out");
                     if (!hasSkippedPackets()) {
                         gotLastPacket = true;
+                        error = true;
                         UTPReadingRunnableLoggerKt.getLogger().debug("ENDING READING, NO MORE INCOMING DATA");
                     } else {
                         UTPReadingRunnableLoggerKt.getLogger().debug("now: " + nowTimeStamp + " last: " + lastPackedReceived + " = " + (nowTimeStamp - lastPackedReceived));
                         UTPReadingRunnableLoggerKt.getLogger().debug("now: " + nowTimeStamp + " start: " + startReadingTimeStamp + " = " + (nowTimeStamp - startReadingTimeStamp));
                         throw new IOException();
                     }
+//                    throw new IllegalArgumentException("Timed out");
                 }
 
             } catch (IOException ioe) {
@@ -103,7 +106,12 @@ public class UtpReadingRunnable extends Thread implements Runnable {
             }
         }
         isRunning = false;
-        readFuture.finished(exp, bos);
+        if (!error) {
+            UTPReadingRunnableLoggerKt.getLogger().debug("No error");
+            readFuture.finished(exp, bos);
+        } else {
+            UTPReadingRunnableLoggerKt.getLogger().debug("Error");
+        }
 
 
         UTPReadingRunnableLoggerKt.getLogger().debug("PAYLOAD LENGTH " + totalPayloadLength);

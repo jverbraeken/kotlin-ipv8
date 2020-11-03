@@ -25,12 +25,8 @@ private val logger = KotlinLogging.logger {}
 
 class UTPEndpoint : Endpoint<IPv4Address>() {
     var socket: DatagramSocket? = null
-
     private val connectionIds: MutableMap<Short, ConnectionIdTriplet> = ConcurrentHashMap()
-
-    private val job = SupervisorJob()
-    private val scope = CoroutineScope(Dispatchers.IO + job)
-
+    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var busySending = false
 
     override fun send(peer: IPv4Address, data: ByteArray) {
@@ -74,13 +70,15 @@ class UTPEndpoint : Endpoint<IPv4Address>() {
         val utpPacket = UtpPacketUtils.extractUtpPacket(packet)
         logger.debug("Received UTP packet. connectionId = ${utpPacket.connectionId}, seq=" + utpPacket.sequenceNumber + ", ack=" + utpPacket.ackNumber)
 
-        if (UtpPacketUtils.isSynPkt(packet)) {
-            logger.debug { "syn received" }
-            synReceived(packet)
-        } else {
-            val connectionId = connectionIds[utpPacket.connectionId]!!
-            val channel = connectionId.channel!!
-            channel.receivePacket(packet)
+        scope.launch(Dispatchers.IO) {
+            if (UtpPacketUtils.isSynPkt(packet)) {
+                logger.debug { "syn received" }
+                synReceived(packet)
+            } else {
+                val connectionId = connectionIds[utpPacket.connectionId]!!
+                val channel = connectionId.channel!!
+                channel.receivePacket(packet)
+            }
         }
     }
 
