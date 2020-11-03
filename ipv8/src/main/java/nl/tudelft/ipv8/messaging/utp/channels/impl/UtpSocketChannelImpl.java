@@ -60,6 +60,7 @@ public class UtpSocketChannelImpl extends UtpSocketChannel {
      */
     @Override
     public void receivePacket(DatagramPacket udpPacket) {
+        UTPSocketChannelImplLoggerKt.getLogger().debug("receivePacket");
         if (isSynAckPacket(udpPacket)) {
             handleSynAckPacket(udpPacket);
         } else if (isResetPacket(udpPacket)) {
@@ -353,7 +354,6 @@ public class UtpSocketChannelImpl extends UtpSocketChannel {
         ackPacket.setTypeVersion(STATE);
         ackPacket.setWindowSize(longToUint(windowSize));
         sendPacket(ackPacket);
-
     }
 
     @Override
@@ -389,6 +389,7 @@ public class UtpSocketChannelImpl extends UtpSocketChannel {
 
     @Override
     public void setRemoteAddress(SocketAddress remoteAdress) {
+        UTPSocketChannelImplLoggerKt.getLogger().debug("setRemoteAddress to " + remoteAdress.toString());
         this.remoteAddress = remoteAdress;
     }
 
