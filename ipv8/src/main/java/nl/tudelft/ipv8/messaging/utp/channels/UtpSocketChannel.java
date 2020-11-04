@@ -12,6 +12,7 @@ import java.util.function.Consumer;
 import nl.tudelft.ipv8.messaging.utp.channels.futures.UtpConnectFuture;
 import nl.tudelft.ipv8.messaging.utp.channels.futures.UtpReadFuture;
 import nl.tudelft.ipv8.messaging.utp.channels.futures.UtpWriteFuture;
+import nl.tudelft.ipv8.messaging.utp.channels.impl.UTPSocketChannelImplLoggerKt;
 import nl.tudelft.ipv8.messaging.utp.channels.impl.UtpSocketChannelImpl;
 import nl.tudelft.ipv8.messaging.utp.channels.impl.conn.UtpConnectFutureImpl;
 import nl.tudelft.ipv8.messaging.utp.channels.impl.receive.UtpPacketRecievable;
@@ -72,7 +73,9 @@ public abstract class UtpSocketChannel implements UtpPacketRecievable {
      * @return {@link UtpConnectFuture}
      */
     public UtpConnectFuture connect(SocketAddress address) {
+        UTPSocketChannelImplLoggerKt.getLogger().debug("Connect to socket");
         stateLock.lock();
+        UTPSocketChannelImplLoggerKt.getLogger().debug("Lock acquired");
         try {
             try {
                 connectFuture = new UtpConnectFutureImpl();
@@ -81,6 +84,7 @@ public abstract class UtpSocketChannel implements UtpPacketRecievable {
                 return null;
             }
             try {
+                UTPSocketChannelImplLoggerKt.getLogger().debug("fill packet, set initial variables and send packet");
                 /* fill packet, set initial variables and send packet */
                 setRemoteAddress(address);
                 setSequenceNumber(DEF_SEQ_START);

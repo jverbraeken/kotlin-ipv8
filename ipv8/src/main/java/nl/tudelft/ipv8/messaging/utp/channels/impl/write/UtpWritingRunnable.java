@@ -148,7 +148,6 @@ public class UtpWritingRunnable extends Thread implements Runnable {
         utpPacket.setWindowSize(leftInBuffer);
         byte[] utpPacketBytes = utpPacket.toByteArray();
         UTPWritingRunnableLoggerKt.getLogger().debug("Sending next packet: " + utpPacket.getSequenceNumber());
-        UTPSocketChannelImplLoggerKt.getLogger().debug("remoteAddress is: " + channel.getRemoteAdress().toString());
         DatagramPacket udpPacket = new DatagramPacket(utpPacketBytes, utpPacketBytes.length, channel.getRemoteAdress());
         algorithm.markPacketOnfly(utpPacket, udpPacket);
         return udpPacket;
