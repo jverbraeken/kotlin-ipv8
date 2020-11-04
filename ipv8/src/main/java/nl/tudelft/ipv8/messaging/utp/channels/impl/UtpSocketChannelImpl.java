@@ -60,7 +60,6 @@ public class UtpSocketChannelImpl extends UtpSocketChannel {
      */
     @Override
     public void receivePacket(DatagramPacket udpPacket) {
-        UTPSocketChannelImplLoggerKt.getLogger().debug("receivePacket");
         if (isSynAckPacket(udpPacket)) {
             handleSynAckPacket(udpPacket);
         } else if (isResetPacket(udpPacket)) {
@@ -135,14 +134,6 @@ public class UtpSocketChannelImpl extends UtpSocketChannel {
         connectionAttempts = 0;
     }
 
-    public int getConnectionAttempts() {
-        return connectionAttempts;
-    }
-
-    public void incrementConnectionAttempts() {
-        connectionAttempts++;
-    }
-
     private void handleDataPacket(DatagramPacket udpPacket) {
         UtpPacket utpPacket = extractUtpPacket(udpPacket);
         readingQueue.offer(new UtpTimestampedPacketDTO(udpPacket, utpPacket, timeStamper.timeStamp(), timeStamper.utpTimeStamp()));
@@ -166,7 +157,6 @@ public class UtpSocketChannelImpl extends UtpSocketChannel {
                           long windowSize) throws IOException {
         UtpPacket ackPacket = createAckPacket(utpPacket, timestampDifference,
             windowSize);
-        UTPSocketChannelImplLoggerKt.getLogger().debug("ackPacket: " + ackPacket.getAckNumber());
         sendPacket(ackPacket);
     }
 
@@ -431,26 +421,28 @@ public class UtpSocketChannelImpl extends UtpSocketChannel {
         retryConnectionTimeScheduler.shutdown();
         retryConnectionTimeScheduler = null;
         connectFuture.finished(exp);
-
     }
 
     /**
      * Resends syn packet. called by {@see ConnectionTimeOutRunnable}
      */
     public void resendSynPacket(UtpPacket synPacket) {
+        UTPSocketChannelImplLoggerKt.getLogger().debug("resendSynPacket");
         stateLock.lock();
+        UTPSocketChannelImplLoggerKt.getLogger().debug("resendSynPacket lock acquired");
         try {
-            int attempts = getConnectionAttempts();
             if (getState() == UtpSocketState.SYN_SENT) {
+                UTPSocketChannelImplLoggerKt.getLogger().debug("resendSynPacket state is syn_sent");
                 try {
-                    if (attempts < UtpAlgConfiguration.MAX_CONNECTION_ATTEMPTS) {
-                        incrementConnectionAttempts();
+                    UTPSocketChannelImplLoggerKt.getLogger().debug("resendSynPacket: " + connectionAttempts + ", " + UtpAlgConfiguration.MAX_CONNECTION_ATTEMPTS);
+                    if (connectionAttempts < UtpAlgConfiguration.MAX_CONNECTION_ATTEMPTS) {
+                        connectionAttempts++;
                         sendPacket(synPacket);
                     } else {
                         connectionFailed(new SocketTimeoutException());
                     }
                 } catch (IOException e) {
-                    if (attempts >= UtpAlgConfiguration.MAX_CONNECTION_ATTEMPTS) {
+                    if (connectionAttempts >= UtpAlgConfiguration.MAX_CONNECTION_ATTEMPTS) {
                         connectionFailed(e);
                     } // else ignore, try in next attempt
                 }
