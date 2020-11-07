@@ -252,11 +252,11 @@ public class UtpSocketChannelImpl extends UtpSocketChannel {
     }
 
     @Override
-    public UtpReadFutureImpl read(Consumer<byte[]> onFileReceived) {
+    public UtpReadFutureImpl read() {
         UtpReadFutureImpl readFuture = null;
         UTPSocketChannelImplLoggerKt.getLogger().debug("UtpReadingRunnable creation 1");
         try {
-            readFuture = new UtpReadFutureImpl(onFileReceived);
+            readFuture = new UtpReadFutureImpl();
         } catch (InterruptedException e) {
             e.printStackTrace();
         }

@@ -8,11 +8,8 @@ import nl.tudelft.ipv8.messaging.utp.channels.futures.UtpReadFuture;
 
 public class UtpReadFutureImpl extends UtpReadFuture {
 
-    private final Consumer<byte[]> onFileReceived;
-
-    public UtpReadFutureImpl(Consumer<byte[]> onFileReceived) throws InterruptedException {
+    public UtpReadFutureImpl() throws InterruptedException {
         super();
-        this.onFileReceived = onFileReceived;
     }
 
     /**
@@ -24,7 +21,6 @@ public class UtpReadFutureImpl extends UtpReadFuture {
         isDone = true;
         semaphore.release();
         listenerLock.lock();
-        onFileReceived.accept(bos.toByteArray());
         listenerLock.unlock();
     }
 }

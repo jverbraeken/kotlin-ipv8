@@ -120,7 +120,7 @@ public abstract class UtpSocketChannel implements UtpPacketRecievable {
      *
      * @return {@link UtpWriteFuture} which will be updated by the channel
      */
-    public abstract UtpReadFuture read(Consumer<byte[]> onFileReceived);
+    public abstract UtpReadFuture read();
 
 
     /**
