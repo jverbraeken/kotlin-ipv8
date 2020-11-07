@@ -23,11 +23,14 @@ import java.util.zip.GZIPOutputStream
 
 private val logger = KotlinLogging.logger {}
 
+@Volatile
+var busySending = false
+    private set
+
 class UTPEndpoint : Endpoint<IPv4Address>() {
     var socket: DatagramSocket? = null
     private val connectionIds: MutableMap<Short, ConnectionIdTriplet> = ConcurrentHashMap()
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-    private var busySending = false
 
     override fun send(peer: IPv4Address, data: ByteArray) {
         if (!busySending) {
