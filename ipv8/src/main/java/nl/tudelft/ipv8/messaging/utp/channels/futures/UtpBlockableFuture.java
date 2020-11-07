@@ -11,6 +11,12 @@ public class UtpBlockableFuture {
     public UtpBlockableFuture() throws InterruptedException {
         semaphore.acquire();
     }
+    /**
+     * Returns true if this future task succeeded.
+     */
+    public boolean isSuccessful() {
+        return exception == null;
+    }
 
     /**
      * Blocks the current thread until the future task is done.

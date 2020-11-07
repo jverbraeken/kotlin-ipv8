@@ -1,6 +1,9 @@
 package nl.tudelft.ipv8.messaging.utp
 
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import mu.KotlinLogging
 import nl.tudelft.ipv8.IPv4Address
 import nl.tudelft.ipv8.messaging.Endpoint
@@ -21,11 +24,29 @@ import java.util.zip.GZIPInputStream
 import java.util.zip.GZIPOutputStream
 
 
-private val logger = KotlinLogging.logger {}
+private val logger = KotlinLogging.logger("UTPEndpoint")
+
+//@Volatile
+//var busySending = false
+//    private set
 
 @Volatile
-var busySending = false
-    private set
+private var numTransmissions = 0
+private const val MAX_NUM_TRANSMISSIONS = 4
+
+fun canSend(): Boolean {
+    return numTransmissions < MAX_NUM_TRANSMISSIONS
+}
+
+private fun startTransmission() {
+    numTransmissions++
+    logger.debug { "increased numTransmissions to $numTransmissions" }
+}
+
+private fun endTransmission() {
+    numTransmissions--
+    logger.debug { "decreased numTransmissions to $numTransmissions" }
+}
 
 class UTPEndpoint : Endpoint<IPv4Address>() {
     var socket: DatagramSocket? = null
@@ -33,8 +54,8 @@ class UTPEndpoint : Endpoint<IPv4Address>() {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     override fun send(peer: IPv4Address, data: ByteArray) {
-        if (!busySending) {
-            busySending = true
+        if (canSend()) {
+            startTransmission()
             logger.debug { "Sending with UTP to ${peer.ip}:${peer.port}" }
             scope.launch(Dispatchers.IO) {
                 var compressedData: ByteArray? = null
@@ -46,20 +67,28 @@ class UTPEndpoint : Endpoint<IPv4Address>() {
                 }
                 logger.debug { "Opening channel" }
                 val channel = UtpSocketChannel.open(socket!!)
-                logger.debug { "Connecting to channel" }
+                logger.debug { "Connecting to channel to ${peer.ip}:${peer.port}" }
                 channel.setupConnectionId()
                 registerChannel(channel)
-                val cFuture = channel.connect(InetSocketAddress(peer.ip, peer.port))
+                val connectFuture = channel.connect(InetSocketAddress(peer.ip, peer.port))
                 logger.debug { "Blocking" }
-                cFuture.block()
-                logger.debug { "Writing" }
-                val fut = channel.write(ByteBuffer.wrap(compressedData!!))
-                logger.debug { "Blocking again" }
-                fut.block()
-                logger.debug { "Closing channel" }
-                channel.close()
-                logger.debug { "Done" }
-                busySending = false
+                connectFuture.block()
+                if (connectFuture.isSuccessful) {
+                    logger.debug { "Writing to ${peer.ip}:${peer.port}" }
+                    val writeFuture = channel.write(ByteBuffer.wrap(compressedData!!))
+                    logger.debug { "Blocking again to ${peer.ip}:${peer.port}" }
+                    writeFuture.block()
+                    if (!writeFuture.isSuccessful) {
+                        logger.error { "Error writing data to ${peer.ip}:${peer.port}" }
+                        endTransmission()
+                    }
+                    logger.debug { "Closing channel (${peer.ip}:${peer.port})" }
+                    channel.close()
+                    logger.debug { "Done (${peer.ip}:${peer.port})" }
+                } else {
+                    logger.error { "Error establishing connection to ${peer.ip}:${peer.port}" }
+                }
+                endTransmission()
             }
         } else {
             logger.warn { "Not sending UTP packet because still busy sending..." }
@@ -71,7 +100,7 @@ class UTPEndpoint : Endpoint<IPv4Address>() {
         val unwrappedData = packet.data.copyOfRange(1, packet.length)
         packet.data = unwrappedData
         val utpPacket = UtpPacketUtils.extractUtpPacket(packet)
-        logger.debug("Received UTP packet. connectionId = ${utpPacket.connectionId}, seq=" + utpPacket.sequenceNumber + ", ack=" + utpPacket.ackNumber)
+//        logger.debug("Received UTP packet. connectionId = ${utpPacket.connectionId}, seq=" + utpPacket.sequenceNumber + ", ack=" + utpPacket.ackNumber)
 
         scope.launch(Dispatchers.IO) {
             if (UtpPacketUtils.isSynPkt(packet)) {
@@ -94,22 +123,24 @@ class UTPEndpoint : Endpoint<IPv4Address>() {
             channel.receivePacket(packet)
             registerChannel(channel)
 
-            val readFuture: UtpReadFuture = channel.read { data: ByteArray ->
+            scope.launch(Dispatchers.IO) {
                 val sourceAddress = IPv4Address(packet.address.hostAddress, packet.port)
-                logger.debug("Received UTP file (${data.size} B) from $sourceAddress, size=${data.size}")
-                var uncompressedData: ByteArray? = null
-                ByteArrayInputStream(data).use { stream ->
-                    GZIPInputStream(stream).use { stream2 ->
-                        uncompressedData = stream2.readBytes()
+                val readFuture: UtpReadFuture = channel.read()
+                logger.debug("Blocking readFuture")
+                readFuture.block()
+                logger.debug("Done blocking readFuture")
+                if (readFuture.isSuccessful) {
+                    val data = readFuture.data.toByteArray()
+                    logger.debug { "Received UTP file (${data.size} B) from ${sourceAddress.ip}:${sourceAddress.port}" }
+                    var uncompressedData: ByteArray? = null
+                    ByteArrayInputStream(data).use { stream ->
+                        GZIPInputStream(stream).use { stream2 ->
+                            uncompressedData = stream2.readBytes()
+                        }
                     }
-                }
-                notifyListeners(Packet(sourceAddress, uncompressedData!!))
-            }
-            scope.launch {
-                withContext(Dispatchers.IO) {
-                    logger.debug("Blocking readFuture")
-                    readFuture.block()
-                    logger.debug("Done blocking readFuture")
+                    notifyListeners(Packet(sourceAddress, uncompressedData!!))
+                } else {
+                    logger.error { "Error reading message from ${sourceAddress.ip}:${sourceAddress.port}" }
                 }
             }
         }

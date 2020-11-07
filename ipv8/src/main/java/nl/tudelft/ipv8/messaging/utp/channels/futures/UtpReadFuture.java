@@ -12,6 +12,10 @@ public class UtpReadFuture extends UtpBlockableFuture {
         super();
     }
 
+    public ByteArrayOutputStream getData() {
+        return bos;
+    }
+
     /**
      * Sets a listener that will be informed once the future task is completed.
      */

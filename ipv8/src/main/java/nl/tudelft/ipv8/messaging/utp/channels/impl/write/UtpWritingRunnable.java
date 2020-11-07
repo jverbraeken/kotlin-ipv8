@@ -7,7 +7,6 @@ import java.util.Queue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
 
-import nl.tudelft.ipv8.messaging.utp.channels.impl.UTPSocketChannelImplLoggerKt;
 import nl.tudelft.ipv8.messaging.utp.channels.impl.UtpSocketChannelImpl;
 import nl.tudelft.ipv8.messaging.utp.channels.impl.UtpTimestampedPacketDTO;
 import nl.tudelft.ipv8.messaging.utp.channels.impl.alg.UtpAlgorithm;
@@ -22,7 +21,7 @@ public class UtpWritingRunnable extends Thread implements Runnable {
     private final UtpAlgorithm algorithm;
     private final MicroSecondsTimeStamp timeStamper;
     private final UtpWriteFutureImpl future;
-    private volatile boolean graceFullInterrupt;
+    private volatile boolean gracefulInterrupt;
     private boolean isRunning = false;
 
     public UtpWritingRunnable(UtpSocketChannelImpl channel, ByteBuffer buffer, MicroSecondsTimeStamp timeStamper, UtpWriteFutureImpl future) {
@@ -41,12 +40,11 @@ public class UtpWritingRunnable extends Thread implements Runnable {
         algorithm.setByteBuffer(buffer);
         isRunning = true;
         IOException possibleExp = null;
-        boolean exceptionOccurred = false;
         while (continueSending()) {
             try {
                 if (!checkForAcks()) {
                     UTPWritingRunnableLoggerKt.getLogger().debug("Interruption...");
-                    graceFullInterrupt = true;
+                    gracefulInterrupt = true;
                     break;
                 }
 
@@ -58,24 +56,23 @@ public class UtpWritingRunnable extends Thread implements Runnable {
                 }
             } catch (IOException exp) {
                 exp.printStackTrace();
-                graceFullInterrupt = true;
+                gracefulInterrupt = true;
                 possibleExp = exp;
                 break;
             }
 
             if (algorithm.isTimedOut()) {
                 UTPWritingRunnableLoggerKt.getLogger().debug("Timed out");
-                graceFullInterrupt = true;
+                gracefulInterrupt = true;
                 possibleExp = new IOException("timed out");
-                exceptionOccurred = true;
 //                throw new IllegalArgumentException("Timed out");
             }
-            while (algorithm.canSendNextPacket() && !exceptionOccurred && !graceFullInterrupt && buffer.hasRemaining()) {
+            while (algorithm.canSendNextPacket() && !gracefulInterrupt && buffer.hasRemaining()) {
                 try {
                     channel.sendPacket(getNextPacket());
                 } catch (IOException exp) {
                     exp.printStackTrace();
-                    graceFullInterrupt = true;
+                    gracefulInterrupt = true;
                     possibleExp = exp;
                     break;
                 }
@@ -83,12 +80,12 @@ public class UtpWritingRunnable extends Thread implements Runnable {
             updateFuture();
         }
 
-        if (!exceptionOccurred) {
+        if (!gracefulInterrupt) {
             isRunning = false;
-            future.finished(possibleExp, buffer.position());
-            UTPWritingRunnableLoggerKt.getLogger().debug("WRITER OUT");
-            channel.removeWriter();
         }
+        future.finished(possibleExp, buffer.position());
+        UTPWritingRunnableLoggerKt.getLogger().debug("WRITER OUT");
+        channel.removeWriter();
     }
 
     private void updateFuture() {
@@ -154,8 +151,8 @@ public class UtpWritingRunnable extends Thread implements Runnable {
     }
 
     private boolean continueSending() {
-        UTPWritingRunnableLoggerKt.getLogger().debug("Continue sending: " + (!graceFullInterrupt && !allPacketsAckedSendAndAcked()) + " <=" + graceFullInterrupt + ", " + allPacketsAckedSendAndAcked());
-        return !graceFullInterrupt && !allPacketsAckedSendAndAcked();
+        UTPWritingRunnableLoggerKt.getLogger().debug("Continue sending: " + (!gracefulInterrupt && !allPacketsAckedSendAndAcked()) + " <=" + gracefulInterrupt + ", " + allPacketsAckedSendAndAcked());
+        return !gracefulInterrupt && !allPacketsAckedSendAndAcked();
     }
 
     private boolean allPacketsAckedSendAndAcked() {
@@ -166,7 +163,7 @@ public class UtpWritingRunnable extends Thread implements Runnable {
 
     public void graceFullInterrupt() {
         UTPWritingRunnableLoggerKt.getLogger().debug("GraceFullInterrupt()");
-        graceFullInterrupt = true;
+        gracefulInterrupt = true;
         throw new RuntimeException("GraceFullInterrupt error");
     }
 

@@ -17,7 +17,7 @@ public class UtpReadingRunnable extends Thread implements Runnable {
     private final ByteArrayOutputStream bos = new ByteArrayOutputStream();
     private final UtpSocketChannelImpl channel;
     private final SkippedPacketBuffer skippedBuffer = new SkippedPacketBuffer();
-    private final UtpReadFutureImpl readFuture;
+    private final UtpReadFutureImpl future;
     private final long startReadingTimeStamp;
     private boolean exceptionOccurred = false;
     private boolean graceFullInterrupt;
@@ -35,8 +35,8 @@ public class UtpReadingRunnable extends Thread implements Runnable {
     public UtpReadingRunnable(UtpSocketChannelImpl channel, MicroSecondsTimeStamp timestamp, UtpReadFutureImpl future) {
         this.channel = channel;
         this.timeStamper = timestamp;
-        this.readFuture = future;
-        lastPayloadLength = UtpAlgConfiguration.MAX_PACKET_SIZE;
+        this.future = future;
+        this.lastPayloadLength = UtpAlgConfiguration.MAX_PACKET_SIZE;
         this.startReadingTimeStamp = timestamp.timeStamp();
     }
 
@@ -44,7 +44,6 @@ public class UtpReadingRunnable extends Thread implements Runnable {
     public void run() {
         UTPReadingRunnableLoggerKt.getLogger().debug("Starting reading");
         isRunning = true;
-        boolean error = false;
         IOException exp = null;
         BlockingQueue<UtpTimestampedPacketDTO> queue = channel.getReadingQueue();
         while (continueReading()) {
@@ -76,42 +75,38 @@ public class UtpReadingRunnable extends Thread implements Runnable {
 
                 /*TODO: How to measure Rtt here for dynamic timeout limit?*/
                 if (isTimedOut()) {
-                    UTPReadingRunnableLoggerKt.getLogger().debug("Timed out");
+                    UTPReadingRunnableLoggerKt.getLogger().error("Timed out");
                     if (!hasSkippedPackets()) {
                         gotLastPacket = true;
-                        error = true;
-                        UTPReadingRunnableLoggerKt.getLogger().debug("ENDING READING, NO MORE INCOMING DATA");
+                        exp = new IOException("Timed out...");
+                        UTPReadingRunnableLoggerKt.getLogger().error("ENDING READING, NO MORE INCOMING DATA");
                     } else {
-                        UTPReadingRunnableLoggerKt.getLogger().debug("now: " + nowTimeStamp + " last: " + lastPackedReceived + " = " + (nowTimeStamp - lastPackedReceived));
-                        UTPReadingRunnableLoggerKt.getLogger().debug("now: " + nowTimeStamp + " start: " + startReadingTimeStamp + " = " + (nowTimeStamp - startReadingTimeStamp));
+                        UTPReadingRunnableLoggerKt.getLogger().error("now: " + nowTimeStamp + " last: " + lastPackedReceived + " = " + (nowTimeStamp - lastPackedReceived));
+                        UTPReadingRunnableLoggerKt.getLogger().error("now: " + nowTimeStamp + " start: " + startReadingTimeStamp + " = " + (nowTimeStamp - startReadingTimeStamp));
                         throw new IOException();
                     }
 //                    throw new IllegalArgumentException("Timed out");
                 }
 
-            } catch (IOException ioe) {
-                UTPReadingRunnableLoggerKt.getLogger().debug("Exception 1");
-                exp = ioe;
+            } catch (IOException e) {
+                UTPReadingRunnableLoggerKt.getLogger().error("IOException");
+                exp = e;
                 exp.printStackTrace();
                 exceptionOccurred = true;
-            } catch (InterruptedException iexp) {
-                UTPReadingRunnableLoggerKt.getLogger().debug("Exception 2");
-                iexp.printStackTrace();
-                exceptionOccurred = true;
-            } catch (ArrayIndexOutOfBoundsException aexp) {
-                UTPReadingRunnableLoggerKt.getLogger().debug("Exception 3");
-                aexp.printStackTrace();
-                exceptionOccurred = true;
+            } catch (InterruptedException e) {
+                UTPReadingRunnableLoggerKt.getLogger().error("InterruptedException");
                 exp = new IOException();
+                e.printStackTrace();
+                exceptionOccurred = true;
+            } catch (ArrayIndexOutOfBoundsException e) {
+                UTPReadingRunnableLoggerKt.getLogger().error("ArrayIndexOutOfBoundsException");
+                e.printStackTrace();
+                exp = new IOException();
+                exceptionOccurred = true;
             }
         }
         isRunning = false;
-        if (!error) {
-            UTPReadingRunnableLoggerKt.getLogger().debug("No error");
-            readFuture.finished(exp, bos);
-        } else {
-            UTPReadingRunnableLoggerKt.getLogger().debug("Error");
-        }
+        future.finished(exp, bos);
 
 
         UTPReadingRunnableLoggerKt.getLogger().debug("PAYLOAD LENGTH " + totalPayloadLength);
