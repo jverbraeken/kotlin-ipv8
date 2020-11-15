@@ -35,7 +35,6 @@ public class UtpAlgorithm {
     private int currentAckPosition = 0;
     private int currentBurstSend = 0;
     private long lastZeroWindow;
-    private ByteBuffer bBuffer;
 
     private long rtt;
     private long rttVar = 0;
@@ -394,9 +393,5 @@ public class UtpAlgorithm {
      */
     public boolean isTimedOut() {
         return timeStampNow - lastAckReceived > getTimeOutMicros() * 5 && lastAckReceived != 0;
-    }
-
-    public void setByteBuffer(ByteBuffer bBuffer) {
-        this.bBuffer = bBuffer;
     }
 }

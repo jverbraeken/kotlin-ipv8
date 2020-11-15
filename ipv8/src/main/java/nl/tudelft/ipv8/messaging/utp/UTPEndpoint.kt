@@ -35,17 +35,23 @@ private var numTransmissions = 0
 private const val MAX_NUM_TRANSMISSIONS = 4
 
 fun canSend(): Boolean {
-    return numTransmissions < MAX_NUM_TRANSMISSIONS
+    synchronized(numTransmissions) {
+        return numTransmissions < MAX_NUM_TRANSMISSIONS
+    }
 }
 
 private fun startTransmission() {
-    numTransmissions++
-    logger.debug { "increased numTransmissions to $numTransmissions" }
+    synchronized(numTransmissions) {
+        numTransmissions++
+        logger.debug { "increased numTransmissions to $numTransmissions" }
+    }
 }
 
 private fun endTransmission() {
-    numTransmissions--
-    logger.debug { "decreased numTransmissions to $numTransmissions" }
+    synchronized(numTransmissions) {
+        numTransmissions--
+        logger.debug { "decreased numTransmissions to $numTransmissions" }
+    }
 }
 
 class UTPEndpoint : Endpoint<IPv4Address>() {

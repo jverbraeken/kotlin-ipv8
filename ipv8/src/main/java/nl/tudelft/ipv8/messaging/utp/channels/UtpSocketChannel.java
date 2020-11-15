@@ -7,7 +7,6 @@ import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.util.Random;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.function.Consumer;
 
 import nl.tudelft.ipv8.messaging.utp.channels.futures.UtpConnectFuture;
 import nl.tudelft.ipv8.messaging.utp.channels.futures.UtpReadFuture;
