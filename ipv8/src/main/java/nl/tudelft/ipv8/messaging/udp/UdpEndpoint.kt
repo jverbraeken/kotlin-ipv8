@@ -71,6 +71,13 @@ open class UdpEndpoint(
     }
 
     override fun send(peer: Peer, data: ByteArray) {
+        send(peer, data, false)
+    }
+
+    /**
+     * @param reliable when the package should be retransmitted until the other peer acknowledges that the packet was received
+     */
+    fun send(peer: Peer, data: ByteArray, reliable: Boolean) {
         if (!isOpen()) throw IllegalStateException("UDP socket is closed")
 
         if (wan == null) {
@@ -85,7 +92,7 @@ open class UdpEndpoint(
         scope.launch {
 //            logger.debug("Send packet (${data.size} B) to $address ($peer)")
             try {
-                if (data.size > UDP_PAYLOAD_LIMIT) {
+                if (data.size > UDP_PAYLOAD_LIMIT || reliable) {
                     when {
                         peer.supportsUTP -> utpEndpoint.send(address, data)
                         peer.supportsFastTFTP -> fastTftpEndpoint.send(address, data)

@@ -51,7 +51,7 @@ class DiscoveryCommunity : Community(), PingOverlay {
         val myPeerSet = network.serviceOverlays.values.map { it.myPeer }.toSet()
         for (myPeer in myPeerSet) {
             val packet = createSimilarityRequest(myPeer)
-            logger.debug ("-> SimilarityRequest address: ${address}")
+            logger.debug ("-> SimilarityRequest address: $address")
             super.send(address, packet)
         }
     }
@@ -61,7 +61,7 @@ class DiscoveryCommunity : Community(), PingOverlay {
         for (myPeer in myPeerSet) {
             val packet = createSimilarityRequest(myPeer)
             logger.debug ("-> SimilarityRequest address: ${peer.address}")
-            super.send(peer, packet)
+            super.send(peer, packet, false)
         }
     }
 
@@ -85,7 +85,7 @@ class DiscoveryCommunity : Community(), PingOverlay {
         pingRequestCache[identifier] = pingRequest
         // TODO: implement cache timeout
 
-        super.send(peer, packet)
+        super.send(peer, packet, false)
     }
 
     internal fun createPong(identifier: Int): ByteArray {
@@ -131,10 +131,6 @@ class DiscoveryCommunity : Community(), PingOverlay {
         super.onIntroductionResponse(peer, payload)
         sendSimilarityRequest(payload.lanIntroductionAddress)
         sendSimilarityRequest(payload.wanIntroductionAddress)
-//        if (!firstMessage) {
-//            onIntroductionResponse(peer, IntroductionResponsePayload(destinationAddress=IPv4Address("192.168.1.128", 8090), sourceLanAddress=IPv4Address("192.168.1.213", 8090), sourceWanAddress=IPv4Address("80.112.139.99", 1024), lanIntroductionAddress=IPv4Address("192.168.1.213", 8090), wanIntroductionAddress=IPv4Address("80.112.139.99", 1024), connectionType=ConnectionType.UNKNOWN, tunnel=false, identifier=180))
-//            firstMessage = true
-//        }
     }
 
     internal fun onSimilarityRequest(
@@ -150,7 +146,7 @@ class DiscoveryCommunity : Community(), PingOverlay {
         for (myPeer in myPeerSet) {
             val packet = createSimilarityResponse(payload.identifier, myPeer)
             logger.debug ("-> SimilarityRequest response address: ${peer.address} (${peer.lanAddress}, ${payload.wanAddress})")
-            super.send(peer, packet)
+            super.send(peer, packet, false)
         }
     }
 

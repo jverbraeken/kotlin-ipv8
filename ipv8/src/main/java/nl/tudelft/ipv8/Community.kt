@@ -1,9 +1,15 @@
 package nl.tudelft.ipv8
 
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import mu.KotlinLogging
 import nl.tudelft.ipv8.keyvault.PrivateKey
-import nl.tudelft.ipv8.messaging.*
+import nl.tudelft.ipv8.messaging.Address
+import nl.tudelft.ipv8.messaging.EndpointAggregator
+import nl.tudelft.ipv8.messaging.Packet
+import nl.tudelft.ipv8.messaging.Serializable
 import nl.tudelft.ipv8.messaging.payload.*
 import nl.tudelft.ipv8.peerdiscovery.Network
 import nl.tudelft.ipv8.peerdiscovery.WanEstimationLog
@@ -134,11 +140,12 @@ abstract class Community : Overlay {
 
         val packetPrefix = data.copyOfRange(0, prefix.size)
         if (!packetPrefix.contentEquals(prefix)) {
-            // logger.debug("prefix not matching")
+            logger.debug("prefix not matching")
             return
         }
 
         val msgId = data[prefix.size].toUByte().toInt()
+        logger.debug { "msgId: $msgId" }
         val handler = messageHandlers[msgId]
 
         if (handler != null) {
@@ -208,8 +215,10 @@ abstract class Community : Overlay {
 
         if (intro != null) {
             // TODO: Seems like a bad practice to send a packet in the create method...
-            val packet = createPunctureRequest(requester.lanAddress, requester.wanAddress,
-                identifier)
+            val packet = createPunctureRequest(
+                requester.lanAddress, requester.wanAddress,
+                identifier
+            )
             send(intro, packet)
         }
 
@@ -388,7 +397,8 @@ abstract class Community : Overlay {
 
         // Process introduced addresses
         if (!payload.wanIntroductionAddress.isEmpty() &&
-            payload.wanIntroductionAddress != myEstimatedWan) {
+            payload.wanIntroductionAddress != myEstimatedWan
+        ) {
             // WAN is not empty and it is not same as ours
 
             if (!payload.lanIntroductionAddress.isEmpty()) {
@@ -401,7 +411,8 @@ abstract class Community : Overlay {
             // request and probably already sent a puncture to us.
             discoverAddress(peer, payload.wanIntroductionAddress, serviceId)
         } else if (!payload.lanIntroductionAddress.isEmpty() &&
-            payload.wanIntroductionAddress.ip == myEstimatedWan.ip) {
+            payload.wanIntroductionAddress.ip == myEstimatedWan.ip
+        ) {
             // LAN is not empty and WAN is the same as ours => they are on the same LAN
             discoverAddress(peer, payload.lanIntroductionAddress, serviceId)
         } else if (!payload.wanIntroductionAddress.isEmpty()) {
@@ -413,8 +424,10 @@ abstract class Community : Overlay {
 
             // Assume LAN is same as ours (e.g. multiple instances running on a local machine),
             // and port same as for WAN (works only if NAT does not change port)
-            discoverAddress(peer, IPv4Address(myEstimatedLan.ip, payload.wanIntroductionAddress.port),
-                serviceId)
+            discoverAddress(
+                peer, IPv4Address(myEstimatedLan.ip, payload.wanIntroductionAddress.port),
+                serviceId
+            )
         }
     }
 
@@ -424,8 +437,10 @@ abstract class Community : Overlay {
         if (!addressIsLan(peer.address) && !peer.address.isLoopback() && !peer.address.isEmpty()) {
             // If this is a new peer, add our estimated WAN to the WAN estimation log which can be
             // used to determine symmetric NAT behavior
-            network.wanLog.addItem(WanEstimationLog.WanLogItem(
-                Date(), peer.address, myEstimatedLan, wan)
+            network.wanLog.addItem(
+                WanEstimationLog.WanLogItem(
+                    Date(), peer.address, myEstimatedLan, wan
+                )
             )
         }
     }
@@ -467,9 +482,9 @@ abstract class Community : Overlay {
         send(target, packet)
     }
 
-    protected fun send(peer: Peer, data: ByteArray) {
+    protected fun send(peer: Peer, data: ByteArray, reliable: Boolean = false) {
         val verifiedPeer = network.getVerifiedByPublicKeyBin(peer.publicKey.keyToBin())
-        endpoint.send(verifiedPeer ?: peer, data)
+        endpoint.send(verifiedPeer ?: peer, data, reliable)
     }
 
     protected open fun send(address: Address, data: ByteArray) {

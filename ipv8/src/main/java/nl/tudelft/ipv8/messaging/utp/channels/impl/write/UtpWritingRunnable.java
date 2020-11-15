@@ -37,7 +37,6 @@ public class UtpWritingRunnable extends Thread implements Runnable {
         UTPWritingRunnableLoggerKt.getLogger().debug("Starting sending with sequence number: " + channel.getSequenceNumber());
         algorithm.initiateAckPosition(channel.getSequenceNumber());
         algorithm.setTimeStamper(timeStamper);
-        algorithm.setByteBuffer(buffer);
         isRunning = true;
         IOException possibleExp = null;
         while (continueSending()) {
