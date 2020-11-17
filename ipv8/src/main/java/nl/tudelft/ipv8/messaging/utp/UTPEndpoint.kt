@@ -64,12 +64,11 @@ class UTPEndpoint : Endpoint<IPv4Address>() {
             startTransmission()
             logger.debug { "Sending with UTP to ${peer.ip}:${peer.port}" }
             scope.launch(Dispatchers.IO) {
-                var compressedData: ByteArray? = null
-                ByteArrayOutputStream().use { os ->
+                val compressedData: ByteArray = ByteArrayOutputStream().use { os ->
                     GZIPOutputStream(os).use { os2 ->
                         os2.write(data)
                     }
-                    compressedData = os.toByteArray()
+                    os.toByteArray()
                 }
                 logger.debug { "Opening channel" }
                 val channel = UtpSocketChannel.open(socket!!)
@@ -81,7 +80,7 @@ class UTPEndpoint : Endpoint<IPv4Address>() {
                 connectFuture.block()
                 if (connectFuture.isSuccessful) {
                     logger.debug { "Writing to ${peer.ip}:${peer.port}" }
-                    val writeFuture = channel.write(ByteBuffer.wrap(compressedData!!))
+                    val writeFuture = channel.write(ByteBuffer.wrap(compressedData))
                     logger.debug { "Blocking again to ${peer.ip}:${peer.port}" }
                     writeFuture.block()
                     if (!writeFuture.isSuccessful) {
@@ -138,13 +137,12 @@ class UTPEndpoint : Endpoint<IPv4Address>() {
                 if (readFuture.isSuccessful) {
                     val data = readFuture.data.toByteArray()
                     logger.debug { "Received UTP file (${data.size} B) from ${sourceAddress.ip}:${sourceAddress.port}" }
-                    var uncompressedData: ByteArray? = null
-                    ByteArrayInputStream(data).use { stream ->
+                    val uncompressedData: ByteArray = ByteArrayInputStream(data).use { stream ->
                         GZIPInputStream(stream).use { stream2 ->
-                            uncompressedData = stream2.readBytes()
+                            stream2.readBytes()
                         }
                     }
-                    notifyListeners(Packet(sourceAddress, uncompressedData!!))
+                    notifyListeners(Packet(sourceAddress, uncompressedData))
                 } else {
                     logger.error { "Error reading message from ${sourceAddress.ip}:${sourceAddress.port}" }
                 }
