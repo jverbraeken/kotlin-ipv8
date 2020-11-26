@@ -2,7 +2,6 @@ package nl.tudelft.ipv8.messaging.utp.channels.impl.alg;
 
 import java.net.DatagramPacket;
 import java.net.SocketAddress;
-import java.nio.ByteBuffer;
 import java.util.LinkedList;
 import java.util.Queue;
 
