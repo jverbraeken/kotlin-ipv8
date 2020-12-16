@@ -96,7 +96,7 @@ class UTPEndpoint : Endpoint<IPv4Address>() {
                 }
                 endTransmission()
                 val end = System.currentTimeMillis()
-                logger.warn { "Successfully sent file in ${end - start} seconds" }
+                logger.warn { "Successfully sent file in ${end - start}ms" }
             }
         } else {
             logger.warn { "Not sending UTP packet because still busy sending..." }
