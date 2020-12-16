@@ -64,6 +64,7 @@ class UTPEndpoint : Endpoint<IPv4Address>() {
             startTransmission()
             logger.debug { "Sending with UTP to ${peer.ip}:${peer.port}" }
             scope.launch(Dispatchers.IO) {
+                val start = System.currentTimeMillis()
                 val compressedData: ByteArray = ByteArrayOutputStream().use { os ->
                     GZIPOutputStream(os).use { os2 ->
                         os2.write(data)
@@ -94,6 +95,8 @@ class UTPEndpoint : Endpoint<IPv4Address>() {
                     logger.error { "Error establishing connection to ${peer.ip}:${peer.port}" }
                 }
                 endTransmission()
+                val end = System.currentTimeMillis()
+                logger.warn { "Successfully sent file in ${end - start} seconds" }
             }
         } else {
             logger.warn { "Not sending UTP packet because still busy sending..." }
