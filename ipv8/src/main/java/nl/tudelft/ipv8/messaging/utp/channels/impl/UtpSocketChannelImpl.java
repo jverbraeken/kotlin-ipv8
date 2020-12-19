@@ -429,7 +429,6 @@ public class UtpSocketChannelImpl extends UtpSocketChannel {
     public void resendSynPacket(UtpPacket synPacket) {
         UTPSocketChannelImplLoggerKt.getLogger().debug("resendSynPacket");
         stateLock.lock();
-        UTPSocketChannelImplLoggerKt.getLogger().debug("resendSynPacket lock acquired");
         try {
             if (getState() == UtpSocketState.SYN_SENT) {
                 UTPSocketChannelImplLoggerKt.getLogger().debug("resendSynPacket state is syn_sent");

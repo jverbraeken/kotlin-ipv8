@@ -21,7 +21,7 @@ class SimpleChurn(
         }
     }
 
-    class Factory: DiscoveryStrategy.Factory<SimpleChurn>() {
+    class Factory : DiscoveryStrategy.Factory<SimpleChurn>() {
         override fun create(): SimpleChurn {
             return SimpleChurn(getOverlay())
         }
