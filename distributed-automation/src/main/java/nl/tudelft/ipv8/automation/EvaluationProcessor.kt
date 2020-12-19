@@ -83,21 +83,21 @@ class EvaluationProcessor(
                     configuration["dataset"],
                     configuration["optimizer"],
                     configuration["learningRate"],
-                    configuration["momentum?"] ?: "<null>",
+                    configuration["momentum"] ?: "<null>",
                     configuration["l2"],
 
                     configuration["batchSize"],
-                    configuration["distribution"],
+                    configuration["iteratorDistribution"],
                     configuration["maxTestSamples"],
 
                     configuration["gar"],
                     configuration["communicationPattern"],
                     configuration["behavior"],
-                    configuration["maxIteration"],
+                    configuration["maxIterations"],
                     configuration["slowdown"],
                     configuration["joiningLate"],
 
-                    configuration["attack"],
+                    configuration["modelPoisoningAttack"],
                     configuration["numAttackers"]
                 ).joinToString(",")
             )
