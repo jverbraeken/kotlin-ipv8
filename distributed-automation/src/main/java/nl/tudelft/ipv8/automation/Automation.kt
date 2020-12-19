@@ -20,12 +20,6 @@ data class Figure(
 @Serializable
 data class Test(val gar: String)
 
-fun loadAutomation(baseDirectory: File): Automation {
-    val file = Paths.get(baseDirectory.path, "automation.config").toFile()
-    val string = file.readLines().joinToString("")
-    return Json.decodeFromString(string)
-}
-
 /**
  * @return 1. the configuration per node, per test, per figure ; 2. the names of the figures
  */
@@ -65,6 +59,8 @@ fun generateConfigs(
 
             for (node in 0 until numNodes) {
                 val distribution = overrideIteratorDistribution?.get(node % overrideIteratorDistribution.size) ?: iteratorDistribution
+                val slowdown = if ((node == 0 && firstNodeSpeed == -1) || (node != 0 && firstNodeSpeed == 1)) "d2" else "none"
+                val joiningLate = if (node == 0 && firstNodeJoiningLate) "n2" else "n0"
                 val configuration = mapOf(
                     Pair("dataset", dataset),
 
@@ -81,11 +77,8 @@ fun generateConfigs(
                     Pair("gar", gar),
                     Pair("communicationPattern", communicationPattern),
                     Pair("behavior", behavior),
-                    Pair(
-                        "slowdown",
-                        if ((node == 0 && firstNodeSpeed == -1) || (node != 0 && firstNodeSpeed == 1)) "d2" else "none"
-                    ),
-                    Pair("joiningLate", if (node == 0 && firstNodeJoiningLate) "n2" else "n0"),
+                    Pair("slowdown", slowdown),
+                    Pair("joiningLate", joiningLate),
 
                     Pair("modelPoisoningAttack", modelPoisoningAttack),
                     Pair("numAttackers", numAttackers)

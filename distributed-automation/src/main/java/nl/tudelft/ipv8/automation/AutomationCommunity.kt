@@ -9,7 +9,6 @@ import nl.tudelft.ipv8.Community
 import nl.tudelft.ipv8.Peer
 import nl.tudelft.ipv8.messaging.Deserializable
 import nl.tudelft.ipv8.messaging.Packet
-import nl.tudelft.ipv8.messaging.Serializable
 import sun.security.action.GetPropertyAction
 import java.io.*
 import java.nio.file.Files
@@ -26,7 +25,7 @@ interface MessageListener {
 }
 
 class AutomationCommunity : Community() {
-    override val serviceId = "36b098237ff4debfd0278b8b87c583e1c2cce4b7" // THE SAME AS FEDMLCOMMUNITY!!!!
+    override val serviceId = "36b098237ff4debfd0278b8b87c583e1c2cce4b7" // MUST BE THE SAME AS FEDMLCOMMUNITY!!!!
     private lateinit var testFinishedLatch: CountDownLatch
     private lateinit var evaluationProcessor: EvaluationProcessor
     private lateinit var localPortToWanPort: Map<Int, Int>
@@ -56,16 +55,15 @@ class AutomationCommunity : Community() {
         })
         messageListeners[MessageId.MSG_NOTIFY_EVALUATION]!!.add(object : MessageListener {
             override fun onMessageReceived(messageId: MessageId, peer: Peer, payload: Any) {
-                logger.info { "Evaluation: ${localPortToWanPort.filterValues { it == peer.address.port }.keys.first()}" }
-                evaluationProcessor.call(
-                    wanPortToPeer.filterValues { it.address.port == peer.address.port }.keys.first(),
-                    (payload as MsgNotifyEvaluation).evaluation
-                )
+                val localPort = localPortToWanPort.filterValues { it == peer.address.port }.keys.first()
+                logger.info { "Evaluation: $localPort" }
+                evaluationProcessor.call(localPort, (payload as MsgNotifyEvaluation).evaluation)
             }
         })
         messageListeners[MessageId.MSG_NOTIFY_FINISHED]!!.add(object : MessageListener {
             override fun onMessageReceived(messageId: MessageId, peer: Peer, payload: Any) {
-                logger.info { "Finished: ${localPortToWanPort.filterValues { it == peer.address.port }.keys.first()}" }
+                val localPort = localPortToWanPort.filterValues { it == peer.address.port }.keys.first()
+                logger.info { "Finished: $localPort" }
                 testFinishedLatch.countDown()
                 logger.info { "#finished peers: ${localPortToWanPort.size - testFinishedLatch.count} of ${localPortToWanPort.size} peers" }
             }
@@ -101,8 +99,6 @@ class AutomationCommunity : Community() {
         }
     }
 
-    ////// MESSAGE RECEIVED EVENTS
-
     private fun onMsgNotifyHeartbeat(packet: Packet) {
         onMessage(packet, MessageId.MSG_NOTIFY_HEARTBEAT)
     }
@@ -120,12 +116,13 @@ class AutomationCommunity : Community() {
         messageListeners.getValue(messageId).forEach { it.onMessageReceived(messageId, peer, payload) }
     }
 
+
+    ////////////// AUTOMATION METHODS
+
+
     private fun startAutomation() = thread(name = "automation main thread") {
         val folder = Paths.get(System.getProperty("user.home"), "Downloads").toFile()
-        evaluationProcessor = EvaluationProcessor(
-            folder,
-            "simulated"
-        )
+        evaluationProcessor = EvaluationProcessor(folder, "simulated")
         val automation = loadAutomation()
         val (configs, figureNames) = generateConfigs(automation)
 
@@ -134,26 +131,29 @@ class AutomationCommunity : Community() {
             val figureConfig = configs[figure]
 
             for (test in figureConfig.indices) {
-                val testConfig = figureConfig[test]
-                prepareEnvironment()
-                while (localPortToWanPort.size < testConfig.size) {
-                    logger.info { "Too few devices found to run the test: ${localPortToWanPort.size} devices found, ${testConfig.size} devices needed" }
-                    Thread.sleep(2000)
-                }
-                logger.error { "Going to test: $figureName - ${testConfig[0]["gar"]}" }
-                evaluationProcessor.newSimulation("$figureName - ${testConfig[0]["gar"]}", testConfig)
-                val activeLocalPorts = localPortToWanPort.keys.toList().subList(0, testConfig.size)
-                testFinishedLatch = CountDownLatch(activeLocalPorts.size)
-
-                for ((i, localPort) in activeLocalPorts.withIndex()) {
-                    val msgNewTestCommand = MsgNewTestCommand(testConfig[i])
-                    val packet = serializePacket(MessageId.MSG_NEW_TEST_COMMAND.id, msgNewTestCommand, true)
-                    send(wanPortToPeer[localPortToWanPort[localPort]]!!, packet, true)
-                }
-                testFinishedLatch.await()
-                logger.warn { "Test finished" }
+                runTest(figureName, figureConfig[test])
             }
         }
+    }
+
+    private fun runTest(figureName: String, config: List<Map<String, String>>) {
+        prepareEnvironment()
+        while (localPortToWanPort.size < config.size) {
+            logger.info { "Too few devices found to run the test: ${localPortToWanPort.size} devices found, ${config.size} devices needed" }
+            Thread.sleep(2000)
+        }
+        logger.error { "Going to test: $figureName - ${config[0]["gar"]}" }
+        evaluationProcessor.newSimulation("$figureName - ${config[0]["gar"]}", config)
+        val activeLocalPorts = localPortToWanPort.keys.toList().subList(0, config.size)
+        testFinishedLatch = CountDownLatch(activeLocalPorts.size)
+
+        for ((i, localPort) in activeLocalPorts.withIndex()) {
+            val msgNewTestCommand = MsgNewTestCommand(config[i])
+            val packet = serializePacket(MessageId.MSG_NEW_TEST_COMMAND.id, msgNewTestCommand, true)
+            send(wanPortToPeer[localPortToWanPort[localPort]]!!, packet, true)
+        }
+        testFinishedLatch.await()
+        logger.warn { "Test finished" }
     }
 
     private fun getPortMapping(): Map<Int, Int> {
@@ -223,6 +223,12 @@ class AutomationCommunity : Community() {
         val tmpDir = Paths.get(doPrivileged(GetPropertyAction("java.io.tmpdir"))).toFile()
         val tmpTime = System.currentTimeMillis()
 
+        createSetupPortsHelperFile(tmpDir, tmpTime)
+        val mainFile = createSetupPortsMainFile(tmpDir, tmpTime, portMapping)
+        Runtime.getRuntime().exec(mainFile.path)
+    }
+
+    private fun createSetupPortsMainFile(tmpDir: File, tmpTime: Long, portMapping: Map<Int, Int>): File {
         val sb = StringBuilder("@echo off\n")
         portMapping.onEachIndexed { i, (emulatorPort, wanPort) ->
             sb.append("set ports[$i]=$emulatorPort\n")
@@ -254,6 +260,10 @@ class AutomationCommunity : Community() {
             it.println(sb.toString())
             it.flush()
         }
+        return mainFile
+    }
+
+    private fun createSetupPortsHelperFile(tmpDir: File, tmpTime: Long): File {
         val helperFile = File(tmpDir, "SetupPortsHelper$tmpTime.vbs")
         PrintWriter(helperFile).use {
             it.println(
@@ -263,81 +273,16 @@ class AutomationCommunity : Community() {
                     "WScript.sleep 50\n" +
                     "OBJECT.SendKeys \"redir add udp:\" & WScript.Arguments.Item(0) & \":8090{ENTER}\"\n" +
                     "WScript.sleep 50\n" +
-                    "'WScript.sleep 1500\n" +
-                    "'OBJECT.SendKeys \"exit{ENTER}\" "
+                    "OBJECT.SendKeys \"exit{ENTER}\""
             )
             it.flush()
         }
-        Runtime.getRuntime().exec(mainFile.path)
+        return helperFile
     }
 
     private fun loadAutomation(): Automation {
         val file = File(AutomationCommunity::class.java.classLoader.getResource("automation.config")!!.path)
         val string = file.readLines().joinToString("")
         return Json.decodeFromString(string)
-    }
-}
-
-data class MsgNotifyHeartbeat(val unused: Boolean) : Serializable {
-    override fun serialize(): ByteArray {
-        throw RuntimeException("Only to be used by the slave, not the master")
-    }
-
-    companion object Deserializer : Deserializable<MsgNotifyHeartbeat> {
-        override fun deserialize(buffer: ByteArray, offset: Int): Pair<MsgNotifyHeartbeat, Int> {
-            return Pair(MsgNotifyHeartbeat(true), buffer.size)
-        }
-    }
-}
-
-
-data class MsgNewTestCommand(val configuration: Map<String, String>) : Serializable {
-
-    override fun serialize(): ByteArray {
-        return ByteArrayOutputStream().use { bos ->
-            ObjectOutputStream(bos).use { oos ->
-                oos.writeObject(configuration)
-                oos.flush()
-            }
-            bos
-        }.toByteArray()
-    }
-
-    companion object Deserializer : Deserializable<MsgNewTestCommand> {
-        override fun deserialize(buffer: ByteArray, offset: Int): Pair<MsgNewTestCommand, Int> {
-            // Unused
-            throw RuntimeException("Only to be used by the slave, not the master")
-        }
-    }
-}
-
-data class MsgNotifyEvaluation(val evaluation: String) : Serializable {
-    override fun serialize(): ByteArray {
-        // Unused
-        throw RuntimeException("Only to be used by the slave, not the master")
-    }
-
-    companion object Deserializer : Deserializable<MsgNotifyEvaluation> {
-        override fun deserialize(buffer: ByteArray, offset: Int): Pair<MsgNotifyEvaluation, Int> {
-            val croppedBuffer = buffer.copyOfRange(offset, buffer.size)
-            ByteArrayInputStream(croppedBuffer).use { bis ->
-                ObjectInputStream(bis).use { ois ->
-                    return Pair(MsgNotifyEvaluation(ois.readObject() as String), buffer.size)
-                }
-            }
-        }
-    }
-}
-
-data class MsgNotifyFinished(val unused: Boolean) : Serializable {
-    override fun serialize(): ByteArray {
-        // Unused
-        throw RuntimeException("Only to be used by the slave, not the master")
-    }
-
-    companion object Deserializer : Deserializable<MsgNotifyFinished> {
-        override fun deserialize(buffer: ByteArray, offset: Int): Pair<MsgNotifyFinished, Int> {
-            return Pair(MsgNotifyFinished(true), buffer.size)
-        }
     }
 }
