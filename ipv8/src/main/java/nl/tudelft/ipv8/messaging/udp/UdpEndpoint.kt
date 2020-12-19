@@ -83,7 +83,7 @@ open class UdpEndpoint(
         if (wan == null) {
             wan = network.wanLog.estimateWan()
         }
-        val redirect = peer.address.ip == wan?.ip ?: IPv4Address.EMPTY || peer.address.ip == "127.0.0.1"
+        val redirect = peer.address.ip == wan?.ip ?: IPv4Address.EMPTY
         val address = if (redirect) {
             IPv4Address("10.0.2.2", peer.address.port)
         } else {
@@ -108,7 +108,7 @@ open class UdpEndpoint(
     }
 
     fun send(address: IPv4Address, data: ByteArray) = scope.launch(Dispatchers.IO) {
-        val redirect = address.ip == network.wanLog.estimateWan()?.ip ?: IPv4Address.EMPTY || address.ip == "127.0.0.1"
+        val redirect = address.ip == network.wanLog.estimateWan()?.ip ?: IPv4Address.EMPTY
         val toAddress: IPv4Address = if (redirect) {
             IPv4Address("10.0.2.2", address.port)
         } else {

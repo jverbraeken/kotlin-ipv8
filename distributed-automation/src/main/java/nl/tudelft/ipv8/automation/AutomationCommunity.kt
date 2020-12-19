@@ -47,10 +47,11 @@ class AutomationCommunity : Community() {
 
         messageListeners[MessageId.MSG_NOTIFY_HEARTBEAT]!!.add(object : MessageListener {
             override fun onMessageReceived(messageId: MessageId, peer: Peer, payload: Any) {
-                logger.info { "Heartbeat: ${localPortToWanPort.filterValues { it == peer.address.port }.keys.first()}" }
+                logger.info { "Heartbeat: ${peer.address.port}" }
                 val port = peer.address.port
                 wanPortToHeartbeat[port] = System.currentTimeMillis()
                 wanPortToPeer[port] = peer
+                peer.supportsUTP = true
             }
         })
         messageListeners[MessageId.MSG_NOTIFY_EVALUATION]!!.add(object : MessageListener {
@@ -120,8 +121,9 @@ class AutomationCommunity : Community() {
     }
 
     private fun startAutomation() = thread(name = "automation main thread") {
+        val folder = Paths.get(System.getProperty("user.home"), "Downloads").toFile()
         evaluationProcessor = EvaluationProcessor(
-            File("dir"),
+            folder,
             "simulated"
         )
         val automation = loadAutomation()
@@ -174,6 +176,7 @@ class AutomationCommunity : Community() {
     private fun runAppOnAllDevices() = runBlocking {
         val maxHeartbeatDelay = 5000L
         val additionalWait = 3000L
+        val restartTime = 10000L
         var maxTime = System.currentTimeMillis() - maxHeartbeatDelay
         if (localPortToWanPort.all { wanPortToHeartbeat.getOrDefault(it.value, -1) >= maxTime }) {
             logger.info { "All peers alive" }
@@ -182,20 +185,19 @@ class AutomationCommunity : Community() {
 
         logger.info { "Possibly not all peers alive => waiting a bit longer" }
         delay(additionalWait)
-        maxTime = System.currentTimeMillis() - maxHeartbeatDelay
+        maxTime -= additionalWait
         if (localPortToWanPort.all { wanPortToHeartbeat.getOrDefault(it.value, -1) >= maxTime }) {
             logger.info { "All peers alive" }
             return@runBlocking
         }
 
-        val deadPeers =
-            wanPortToHeartbeat.filter { it.value < System.currentTimeMillis() - maxHeartbeatDelay - additionalWait }.keys
+        val deadPeers = localPortToWanPort.filterValues { wanPortToHeartbeat.getOrDefault(it, 0) < maxTime }.keys
         logger.info { "Peers that are probably dead: $deadPeers" }
         deadPeers.forEach {
             runAppOnDevice(it)
         }
-        delay(maxHeartbeatDelay)  // Give time to restart app
-        maxTime = System.currentTimeMillis() - maxHeartbeatDelay
+        delay(restartTime)  // Give time to restart app
+        maxTime -= restartTime
         if (localPortToWanPort.all { wanPortToHeartbeat.getOrDefault(it.value, -1) >= maxTime }) {
             logger.info { "Success restarting devices => all peers alive" }
             return@runBlocking
@@ -209,7 +211,7 @@ class AutomationCommunity : Community() {
             it.println(
                 "@echo off\n" +
                     "adb -s emulator-$peer root\n" +
-                    "adb -s emulator-$peer shell am force-stop nl.tudelft.trustchain" +
+                    "adb -s emulator-$peer shell am force-stop nl.tudelft.trustchain\n" +
                     "adb -s emulator-$peer shell am start -n nl.tudelft.trustchain/nl.tudelft.trustchain.app.ui.dashboard.DashboardActivity -e activity fedml -e automationPart 0 -e enableExternalAutomation true\n"
             )
             it.flush()
