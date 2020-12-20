@@ -97,7 +97,7 @@ open class UdpEndpoint(
                         peer.supportsUTP -> utpEndpoint.send(address, data)
                         peer.supportsFastTFTP -> fastTftpEndpoint.send(address, data)
                         peer.supportsTFTP -> tftpEndpoint.send(address, data)
-                        else -> logger.warn { "The packet is larger then UDP_PAYLOAD_LIMIT and the peer does not support TFTP" }
+                        else -> logger.warn { "The packet is larger than UDP_PAYLOAD_LIMIT and the peer does not support TFTP" }
                     }
                 } else {
                     send(address, data)
@@ -124,6 +124,7 @@ open class UdpEndpoint(
 
     override fun open() {
         val socket = getDatagramSocket()
+        logger.info { "Opened socket on port: ${socket.port}" }
         this.socket = socket
 
         tftpEndpoint.socket = socket
@@ -224,7 +225,7 @@ open class UdpEndpoint(
     }
 
     internal fun handleReceivedPacket(receivePacket: DatagramPacket) {
-//        logger.debug("Received packet from " + "${receivePacket.address.hostAddress}:${receivePacket.port}")
+        logger.debug("Received packet from " + "${receivePacket.address.hostAddress}:${receivePacket.port}")
 
         // Check whether prefix is IPv8, TFTP, or UTP
         when (receivePacket.data[0]) {
