@@ -22,6 +22,7 @@ import java.nio.ByteBuffer
 import java.util.concurrent.ConcurrentHashMap
 import java.util.zip.GZIPInputStream
 import java.util.zip.GZIPOutputStream
+import kotlin.system.measureTimeMillis
 
 
 private val logger = KotlinLogging.logger("UTPEndpoint")
@@ -64,39 +65,39 @@ class UTPEndpoint : Endpoint<IPv4Address>() {
             startTransmission()
             logger.debug { "Sending with UTP to ${peer.ip}:${peer.port}" }
             scope.launch(Dispatchers.IO) {
-                val start = System.currentTimeMillis()
-                val compressedData: ByteArray = ByteArrayOutputStream().use { os ->
-                    GZIPOutputStream(os).use { os2 ->
-                        os2.write(data)
+                val time = measureTimeMillis {
+                    val compressedData: ByteArray = ByteArrayOutputStream().use { os ->
+                        GZIPOutputStream(os).use { os2 ->
+                            os2.write(data)
+                        }
+                        os.toByteArray()
                     }
-                    os.toByteArray()
-                }
-                logger.debug { "Opening channel" }
-                val channel = UtpSocketChannel.open(socket!!)
-                logger.debug { "Connecting to channel to ${peer.ip}:${peer.port}" }
-                channel.setupConnectionId()
-                registerChannel(channel)
-                val connectFuture = channel.connect(InetSocketAddress(peer.ip, peer.port))
-                logger.debug { "Blocking" }
-                connectFuture.block()
-                if (connectFuture.isSuccessful) {
-                    logger.debug { "Writing to ${peer.ip}:${peer.port}" }
-                    val writeFuture = channel.write(ByteBuffer.wrap(compressedData))
-                    logger.debug { "Blocking again to ${peer.ip}:${peer.port}" }
-                    writeFuture.block()
-                    if (!writeFuture.isSuccessful) {
-                        logger.error { "Error writing data to ${peer.ip}:${peer.port}" }
-                        endTransmission()
+                    logger.debug { "Opening channel" }
+                    val channel = UtpSocketChannel.open(socket!!)
+                    logger.debug { "Connecting to channel to ${peer.ip}:${peer.port}" }
+                    channel.setupConnectionId()
+                    registerChannel(channel)
+                    val connectFuture = channel.connect(InetSocketAddress(peer.ip, peer.port))
+                    logger.debug { "Blocking" }
+                    connectFuture.block()
+                    if (connectFuture.isSuccessful) {
+                        logger.debug { "Writing to ${peer.ip}:${peer.port}" }
+                        val writeFuture = channel.write(ByteBuffer.wrap(compressedData))
+                        logger.debug { "Blocking again to ${peer.ip}:${peer.port}" }
+                        writeFuture.block()
+                        if (!writeFuture.isSuccessful) {
+                            logger.error { "Error writing data to ${peer.ip}:${peer.port}" }
+                            endTransmission()
+                        }
+                        logger.debug { "Closing channel (${peer.ip}:${peer.port})" }
+                        channel.close()
+                        logger.debug { "Done (${peer.ip}:${peer.port})" }
+                    } else {
+                        logger.error { "Error establishing connection to ${peer.ip}:${peer.port}" }
                     }
-                    logger.debug { "Closing channel (${peer.ip}:${peer.port})" }
-                    channel.close()
-                    logger.debug { "Done (${peer.ip}:${peer.port})" }
-                } else {
-                    logger.error { "Error establishing connection to ${peer.ip}:${peer.port}" }
+                    endTransmission()
                 }
-                endTransmission()
-                val end = System.currentTimeMillis()
-                logger.warn { "Successfully sent file in ${end - start}ms" }
+                logger.warn { "Successfully sent file in ${time}ms" }
             }
         } else {
             logger.warn { "Not sending UTP packet because still busy sending..." }

@@ -72,9 +72,7 @@ public abstract class UtpSocketChannel implements UtpPacketRecievable {
      * @return {@link UtpConnectFuture}
      */
     public UtpConnectFuture connect(SocketAddress address) {
-        UTPSocketChannelImplLoggerKt.getLogger().debug("Connect to socket");
         stateLock.lock();
-        UTPSocketChannelImplLoggerKt.getLogger().debug("Lock acquired");
         try {
             try {
                 connectFuture = new UtpConnectFutureImpl();
