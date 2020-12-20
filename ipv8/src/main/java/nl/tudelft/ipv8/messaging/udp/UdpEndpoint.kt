@@ -77,45 +77,45 @@ open class UdpEndpoint(
     /**
      * @param reliable when the package should be retransmitted until the other peer acknowledges that the packet was received
      */
-    fun send(peer: Peer, data: ByteArray, reliable: Boolean) {
+    fun send(peer: Peer, data: ByteArray, reliable: Boolean) = scope.launch(Dispatchers.IO) {
         if (!isOpen()) throw IllegalStateException("UDP socket is closed")
 
         if (wan == null) {
             wan = network.wanLog.estimateWan()
         }
-        val address = if (peer.address.ip == wan?.ip ?: IPv4Address.EMPTY) {
+        val redirect = peer.address.ip == wan?.ip ?: IPv4Address.EMPTY
+        val address = if (redirect) {
             IPv4Address("10.0.2.2", peer.address.port)
         } else {
             peer.address
         }
 
-        scope.launch {
-//            logger.debug("Send packet (${data.size} B) to $address ($peer)")
-            try {
-                if (data.size > UDP_PAYLOAD_LIMIT || reliable) {
-                    when {
-                        peer.supportsUTP -> utpEndpoint.send(address, data)
-                        peer.supportsFastTFTP -> fastTftpEndpoint.send(address, data)
-                        peer.supportsTFTP -> tftpEndpoint.send(address, data)
-                        else -> logger.warn { "The packet is larger than UDP_PAYLOAD_LIMIT and the peer does not support TFTP" }
-                    }
-                } else {
-                    send(address, data)
+//      logger.debug("Send packet (${data.size} B) to $address ($peer)")
+        try {
+            if (data.size > UDP_PAYLOAD_LIMIT || reliable) {
+                when {
+                    peer.supportsUTP -> utpEndpoint.send(address, data)
+                    peer.supportsFastTFTP -> fastTftpEndpoint.send(address, data)
+                    peer.supportsTFTP -> tftpEndpoint.send(address, data)
+                    else -> logger.warn { "The packet is larger then UDP_PAYLOAD_LIMIT and the peer does not support TFTP" }
                 }
-            } catch (e: Exception) {
-                e.printStackTrace()
+            } else {
+                send(address, data)
             }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 
     fun send(address: IPv4Address, data: ByteArray) = scope.launch(Dispatchers.IO) {
+        val redirect = address.ip == network.wanLog.estimateWan()?.ip ?: IPv4Address.EMPTY
+        val toAddress: IPv4Address = if (redirect) {
+            IPv4Address("10.0.2.2", address.port)
+        } else {
+            address
+        }
+        val datagramPacket = DatagramPacket(data, data.size, toAddress.toSocketAddress())
         try {
-            val toAddress: IPv4Address = if (address.ip == network.wanLog.estimateWan()?.ip ?: IPv4Address.EMPTY) {
-                IPv4Address("10.0.2.2", address.port)
-            } else {
-                address
-            }
-            val datagramPacket = DatagramPacket(data, data.size, toAddress.toSocketAddress())
             socket?.send(datagramPacket)
         } catch (e: Exception) {
             logger.error("Sending DatagramPacket failed", e)
