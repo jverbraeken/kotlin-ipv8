@@ -124,6 +124,7 @@ open class UdpEndpoint(
 
     override fun open() {
         val socket = getDatagramSocket()
+        logger.info { "Opened socket on port: ${socket.port}" }
         this.socket = socket
 
         tftpEndpoint.socket = socket

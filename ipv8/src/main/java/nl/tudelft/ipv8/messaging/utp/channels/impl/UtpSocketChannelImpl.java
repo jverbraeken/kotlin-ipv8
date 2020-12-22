@@ -431,7 +431,6 @@ public class UtpSocketChannelImpl extends UtpSocketChannel {
         stateLock.lock();
         try {
             if (getState() == UtpSocketState.SYN_SENT) {
-                UTPSocketChannelImplLoggerKt.getLogger().debug("resendSynPacket state is syn_sent");
                 try {
                     UTPSocketChannelImplLoggerKt.getLogger().debug("resendSynPacket: " + connectionAttempts + ", " + UtpAlgConfiguration.MAX_CONNECTION_ATTEMPTS);
                     if (connectionAttempts < UtpAlgConfiguration.MAX_CONNECTION_ATTEMPTS) {
