@@ -98,39 +98,9 @@ class UTPEndpoint : Endpoint<IPv4Address>() {
                     endTransmission()
                 }
                 logger.warn { "Successfully sent file in ${time}ms" }
-                val compressedData: ByteArray = ByteArrayOutputStream().use { os ->
-                    GZIPOutputStream(os).use { os2 ->
-                        os2.write(data)
-                    }
-                    os.toByteArray()
-                }
-                logger.debug { "Opening channel ${peer.port}" }
-                val channel = UtpSocketChannel.open(socket!!)
-                logger.debug { "Connecting to channel to ${peer.ip}:${peer.port}" }
-                channel.setupConnectionId()
-                registerChannel(channel, peer.port)
-                val connectFuture = channel.connect(InetSocketAddress(peer.ip, peer.port))
-                logger.debug { "Blocking ${peer.port}" }
-                connectFuture.block()
-                if (connectFuture.isSuccessful) {
-                    logger.debug { "Writing to ${peer.ip}:${peer.port}" }
-                    val writeFuture = channel.write(ByteBuffer.wrap(compressedData))
-                    logger.debug { "Blocking again to ${peer.ip}:${peer.port}" }
-                    writeFuture.block()
-                    if (!writeFuture.isSuccessful) {
-                        logger.error { "Error writing data to ${peer.ip}:${peer.port}" }
-                        endTransmission()
-                    }
-                    logger.debug { "Closing channel (${peer.ip}:${peer.port})" }
-                    channel.close()
-                    logger.debug { "Done (${peer.ip}:${peer.port})" }
-                } else {
-                    logger.error { "Error establishing connection to ${peer.ip}:${peer.port}" }
-                }
-                endTransmission()
             }
         } else {
-            logger.warn { "Not sending UTP packet because still busy sending... ${peer.port}" }
+            logger.warn { "Not sending UTP packet because still busy sending..." }
             return
         }
     }
