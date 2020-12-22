@@ -160,6 +160,8 @@ class AutomationCommunity : Community() {
         val getWanPorts = AutomationCommunity::class.java.classLoader.getResource("GetWanPorts.cmd")!!.path
         Runtime.getRuntime().exec(getWanPorts)
         Thread.sleep(1000)
+        Runtime.getRuntime().exec(getWanPorts)
+        Thread.sleep(1000)
 
         val folder = Paths.get(System.getProperty("user.home"), "Downloads", "wanPorts").toFile()
         return folder.list()!!.associate {

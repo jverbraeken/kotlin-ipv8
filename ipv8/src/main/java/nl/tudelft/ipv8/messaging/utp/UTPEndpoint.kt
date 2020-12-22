@@ -70,13 +70,13 @@ class UTPEndpoint : Endpoint<IPv4Address>() {
                     }
                     os.toByteArray()
                 }
-                logger.debug { "Opening channel" }
+                logger.debug { "Opening channel ${peer.port}" }
                 val channel = UtpSocketChannel.open(socket!!)
                 logger.debug { "Connecting to channel to ${peer.ip}:${peer.port}" }
                 channel.setupConnectionId()
-                registerChannel(channel)
+                registerChannel(channel, peer.port)
                 val connectFuture = channel.connect(InetSocketAddress(peer.ip, peer.port))
-                logger.debug { "Blocking" }
+                logger.debug { "Blocking ${peer.port}" }
                 connectFuture.block()
                 if (connectFuture.isSuccessful) {
                     logger.debug { "Writing to ${peer.ip}:${peer.port}" }
@@ -96,7 +96,7 @@ class UTPEndpoint : Endpoint<IPv4Address>() {
                 endTransmission()
             }
         } else {
-            logger.warn { "Not sending UTP packet because still busy sending..." }
+            logger.warn { "Not sending UTP packet because still busy sending... ${peer.port}" }
             return
         }
     }
@@ -109,7 +109,7 @@ class UTPEndpoint : Endpoint<IPv4Address>() {
 
         scope.launch(Dispatchers.IO) {
             if (UtpPacketUtils.isSynPkt(packet)) {
-                logger.debug { "syn received" }
+                logger.debug { "syn received: ${packet.port}" }
                 synReceived(packet)
             } else {
                 val connectionId = connectionIds[utpPacket.connectionId]!!
@@ -126,14 +126,14 @@ class UTPEndpoint : Endpoint<IPv4Address>() {
         if (packet != null) {
             val channel = UtpSocketChannel.open(socket)
             channel.receivePacket(packet)
-            registerChannel(channel)
+            registerChannel(channel, packet.port)
 
             scope.launch(Dispatchers.IO) {
                 val sourceAddress = IPv4Address(packet.address.hostAddress, packet.port)
                 val readFuture: UtpReadFuture = channel.read()
-                logger.debug("Blocking readFuture")
+                logger.debug("Blocking readFuture: ${packet.port}")
                 readFuture.block()
-                logger.debug("Done blocking readFuture")
+                logger.debug("Done blocking readFuture: ${packet.port}")
                 if (readFuture.isSuccessful) {
                     val data = readFuture.data.toByteArray()
                     logger.debug { "Received UTP file (${data.size} B) from ${sourceAddress.ip}:${sourceAddress.port}" }
@@ -165,16 +165,16 @@ class UTPEndpoint : Endpoint<IPv4Address>() {
         return false
     }
 
-    private fun registerChannel(channel: UtpSocketChannel): Boolean {
-        logger.debug { "Registering channel with connectionId = ${channel.connectionIdReceiving}" }
+    private fun registerChannel(channel: UtpSocketChannel, port: Int): Boolean {
+        logger.debug { "Registering channel with connectionId = ${channel.connectionIdReceiving}, port: $port" }
         val triplet =
             ConnectionIdTriplet(channel, channel.connectionIdReceiving, channel.connectionIdSending)
         if (isChannelRegistrationNecessary(channel)) {
-            logger.debug { "Channel registration was necessary" }
+            logger.debug { "Channel registration was necessary: $port" }
             connectionIds[channel.connectionIdReceiving] = triplet
             return true
         } else {
-            logger.debug { "Channel registration was NOT necessary" }
+            logger.debug { "Channel registration was NOT necessary: $port" }
         }
 
         /* Connection id collision found or not been able to ack.
