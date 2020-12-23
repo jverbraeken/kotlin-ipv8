@@ -10,7 +10,7 @@ private val logger = KotlinLogging.logger("Initialization")
 
 fun main() {
     val avdDir = Paths.get(System.getProperty("user.home"), ".android", "avd").toFile()
-    val threads = (0 until 2).map { i ->
+    val threads = (0 until 4).map { i ->
         thread {
             val port = 5554 + 2 * i
 
@@ -117,7 +117,6 @@ fun isEmulatorRunning(port: Int): Boolean {
     val running = Runtime.getRuntime().exec("adb devices") // -s emulator-$i shell getprop")
     running.inputStream.bufferedReader(Charsets.UTF_8).use {
         val txt = it.readLines().joinToString()
-        logger.debug { txt }
         if (txt.contains(port.toString())) {
             return true
         }

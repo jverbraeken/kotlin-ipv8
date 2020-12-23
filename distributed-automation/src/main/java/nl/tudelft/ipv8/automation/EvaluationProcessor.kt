@@ -12,7 +12,7 @@ private val DATE_FORMAT = SimpleDateFormat(DATE_PATTERN, Locale.US)
 private val logger = KotlinLogging.logger("EvaluationProcessor")
 
 class EvaluationProcessor(
-    baseDirectory: File,
+    fileDirectory: File,
     runner: String
 ) {
     private val configurationHeader = arrayOf(
@@ -62,7 +62,6 @@ class EvaluationProcessor(
 
     @Transient
     private val evaluationLines = arrayListOf(evaluationHeader)
-    private val fileDirectory = File(baseDirectory.path, "evaluations")
     private val fileResults = File(fileDirectory, "evaluation-$runner-${DATE_FORMAT.format(Date())}.csv")
     private var fileMeta = File(fileDirectory, "evaluation-$runner-${DATE_FORMAT.format(Date())}.meta.csv")
     private lateinit var currentName: String

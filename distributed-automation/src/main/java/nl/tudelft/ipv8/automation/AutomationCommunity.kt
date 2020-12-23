@@ -31,6 +31,20 @@ class AutomationCommunity : Community() {
     private lateinit var localPortToWanPort: Map<Int, Int>
     private val wanPortToPeer = mutableMapOf<Int, Peer>()
     private var wanPortToHeartbeat = mutableMapOf<Int, Long>()
+    private val currentOS = getOS()
+
+    enum class OS {
+        WINDOWS, UNIX
+    }
+
+    private fun getOS(): OS {
+        val getWanPorts = AutomationCommunity::class.java.classLoader.getResource("GetWanPorts.cmd")!!.path
+        return if (getWanPorts.contains("home")) {
+            OS.UNIX
+        } else {
+            OS.WINDOWS
+        }
+    }
 
     enum class MessageId(val id: Int, val deserializer: Deserializable<out Any>) {
         MSG_NOTIFY_HEARTBEAT(110, MsgNotifyHeartbeat.Deserializer),
@@ -46,7 +60,7 @@ class AutomationCommunity : Community() {
 
         messageListeners[MessageId.MSG_NOTIFY_HEARTBEAT]!!.add(object : MessageListener {
             override fun onMessageReceived(messageId: MessageId, peer: Peer, payload: Any) {
-                logger.info { "Heartbeat: ${peer.address.port}" }
+//                logger.info { "Heartbeat: ${peer.address.port}" }
                 val port = peer.address.port
                 wanPortToHeartbeat[port] = System.currentTimeMillis()
                 wanPortToPeer[port] = peer
@@ -121,8 +135,8 @@ class AutomationCommunity : Community() {
 
 
     private fun startAutomation() = thread(name = "automation main thread") {
-        val folder = Paths.get(System.getProperty("user.home"), "Downloads").toFile()
-        evaluationProcessor = EvaluationProcessor(folder, "simulated")
+        val evaluationsFolder = Paths.get(System.getProperty("user.home"), "Downloads", "evaluations").toFile()
+        evaluationProcessor = EvaluationProcessor(evaluationsFolder, "distributed")
         val automation = loadAutomation()
         val (configs, figureNames) = generateConfigs(automation)
 
@@ -134,6 +148,12 @@ class AutomationCommunity : Community() {
                 runTest(figureName, figureConfig[test])
             }
         }
+    }
+
+    private fun loadAutomation(): Automation {
+        val file = File(AutomationCommunity::class.java.classLoader.getResource("automation.config")!!.path)
+        val string = file.readLines().joinToString("")
+        return Json.decodeFromString(string)
     }
 
     private fun runTest(figureName: String, config: List<Map<String, String>>) {
@@ -156,8 +176,18 @@ class AutomationCommunity : Community() {
         logger.warn { "Test finished" }
     }
 
+    private fun prepareEnvironment() {
+        localPortToWanPort = getPortMapping()
+        setupPortRedirection(localPortToWanPort)
+        runAppOnAllDevices()
+    }
+
     private fun getPortMapping(): Map<Int, Int> {
-        val getWanPorts = AutomationCommunity::class.java.classLoader.getResource("GetWanPorts.cmd")!!.path
+        var getWanPorts = AutomationCommunity::class.java.classLoader.getResource("GetWanPorts.cmd")!!.path
+        if (currentOS == OS.UNIX) {
+            getWanPorts = AutomationCommunity::class.java.classLoader.getResource("GetWanPorts.sh")!!.path
+            Runtime.getRuntime().exec("chmod 777 $getWanPorts").waitFor()
+        }
         Runtime.getRuntime().exec(getWanPorts)
         Thread.sleep(1000)
 
@@ -167,10 +197,101 @@ class AutomationCommunity : Community() {
         }
     }
 
-    private fun prepareEnvironment() {
-        localPortToWanPort = getPortMapping()
-        setupPortRedirection(localPortToWanPort)
-        runAppOnAllDevices()
+    private fun setupPortRedirection(portMapping: Map<Int, Int>) {
+        val tmpDir = Paths.get(doPrivileged(GetPropertyAction("java.io.tmpdir"))).toFile()
+        val tmpTime = System.currentTimeMillis()
+        val setupPortsFile = if (currentOS == OS.WINDOWS) {
+            createSetupPortsFileWindows(tmpDir, tmpTime, portMapping)
+        } else {
+            createSetupPortsFileUnix(tmpDir, tmpTime, portMapping)
+        }
+        Runtime.getRuntime().exec(setupPortsFile.path)
+    }
+
+    private fun createSetupPortsFileWindows(tmpDir: File, tmpTime: Long, portMapping: Map<Int, Int>): File {
+        createSetupPortsFileWindowsHelper(tmpDir, tmpTime)
+        val sb = StringBuilder("@echo off\n")
+        portMapping.onEachIndexed { i, (emulatorPort, wanPort) ->
+            sb.append("set ports[$i]=$emulatorPort\n")
+            sb.append("set redirects[$i]=$wanPort\n")
+        }
+        sb.append(
+            "set \"x=0\"\n" +
+                ":SymLoop\n" +
+                "if defined ports[%x%] (\n" +
+                "\tcall echo %%ports[%x%]%%\n" +
+                "\tset /a \"x+=1\"\n" +
+                "\tGOTO :SymLoop \n" +
+                ")\n" +
+                "set /a \"x-=1\"\n" +
+                "echo \"Redirecting %x% AVDs\"\n" +
+                "\n" +
+                "setlocal EnableDelayedExpansion\n" +
+                "for /L %%i in (0, 1, %x%) do (\n" +
+                "\techo Forwarding AVD !ports[%%i]! to port !redirects[%%i]!\n" +
+                "\tstart telnet.exe localhost !ports[%%i]!\n" +
+                "\tcscript SetupPortsHelper$tmpTime.vbs !redirects[%%i]!\n" +
+                ")\n" +
+                "endlocal\n" +
+                "exit\n"
+        )
+
+        val mainFile = File(tmpDir, "SetupPorts$tmpTime.bat")
+        PrintWriter(mainFile).use {
+            it.println(sb.toString())
+            it.flush()
+        }
+        return mainFile
+    }
+
+    private fun createSetupPortsFileWindowsHelper(tmpDir: File, tmpTime: Long): File {
+        val helperFile = File(tmpDir, "SetupPortsHelper$tmpTime.vbs")
+        PrintWriter(helperFile).use {
+            it.println(
+                "set OBJECT=WScript.CreateObject(\"WScript.Shell\")\n" +
+                    "WScript.sleep 50\n" +
+                    "OBJECT.SendKeys \"auth fqvo8zH1j32aFoVB{ENTER}\"\n" + // Hardcoded password is too insignificant to remove from the code
+                    "WScript.sleep 50\n" +
+                    "OBJECT.SendKeys \"redir add udp:\" & WScript.Arguments.Item(0) & \":8090{ENTER}\"\n" +
+                    "WScript.sleep 50\n" +
+                    "OBJECT.SendKeys \"exit{ENTER}\""
+            )
+            it.flush()
+        }
+        return helperFile
+    }
+
+    private fun createSetupPortsFileUnix(tmpDir: File, tmpTime: Long, portMapping: Map<Int, Int>): File {
+        val sb = StringBuilder()
+        sb.append("#!/bin/bash\n")
+        sb.append("declare -A mapping\n")
+        portMapping.forEach { (emulatorPort, wanPort) ->
+            sb.append("mapping[$emulatorPort]=$wanPort\n")
+        }
+        val auth = Paths.get(System.getProperty("user.home"), ".emulator_console_auth_token").toFile().readText(Charsets.UTF_8)
+        sb.append(
+            "for localport in \"\${!mapping[@]}\"; do\n" +
+                "\techo \"Forwarding AVD \$localPort to wan port \${mapping[\$localport]}\"\n" +
+                "\techo telnet localhost \$localport\n" +
+                "\techo redir add \"udp:\${mapping[\$localport]}:8090\"\n" +
+                "\t\n" +
+                "\t(\n" +
+                "\t\techo auth $auth\n" +
+                "\t\tsleep 1\n" +
+                "\t\techo redir add \"udp:\${mapping[\$localport]}:8090\"\n" +
+                "\t\tsleep 1\n" +
+                "\t\techo quit\n" +
+                "\t) | telnet localhost \$localport\n" +
+                "done"
+        )
+
+        val mainFile = File(tmpDir, "SetupPorts$tmpTime.sh")
+        PrintWriter(mainFile).use {
+            it.println(sb.toString())
+            it.flush()
+        }
+        Runtime.getRuntime().exec("chmod 777 ${mainFile.path}").waitFor()
+        return mainFile
     }
 
     private fun runAppOnAllDevices() = runBlocking {
@@ -206,6 +327,13 @@ class AutomationCommunity : Community() {
     }
 
     private fun runAppOnDevice(peer: Int) {
+        when (currentOS) {
+            OS.WINDOWS -> runAppOnDeviceWindows(peer)
+            OS.UNIX -> runAppOnDeviceUnix(peer)
+        }
+    }
+
+    private fun runAppOnDeviceWindows(peer: Int) {
         val file = Files.createTempFile("runAppOnDevice", ".cmd").toFile()
         PrintWriter(file).use {
             it.println(
@@ -219,70 +347,18 @@ class AutomationCommunity : Community() {
         Runtime.getRuntime().exec(file.path)
     }
 
-    private fun setupPortRedirection(portMapping: Map<Int, Int>) {
-        val tmpDir = Paths.get(doPrivileged(GetPropertyAction("java.io.tmpdir"))).toFile()
-        val tmpTime = System.currentTimeMillis()
-
-        createSetupPortsHelperFile(tmpDir, tmpTime)
-        val mainFile = createSetupPortsMainFile(tmpDir, tmpTime, portMapping)
-        Runtime.getRuntime().exec(mainFile.path)
-    }
-
-    private fun createSetupPortsMainFile(tmpDir: File, tmpTime: Long, portMapping: Map<Int, Int>): File {
-        val sb = StringBuilder("@echo off\n")
-        portMapping.onEachIndexed { i, (emulatorPort, wanPort) ->
-            sb.append("set ports[$i]=$emulatorPort\n")
-            sb.append("set redirects[$i]=$wanPort\n")
-        }
-        sb.append(
-            "set \"x=0\"\n" +
-                ":SymLoop\n" +
-                "if defined ports[%x%] (\n" +
-                "\tcall echo %%ports[%x%]%%\n" +
-                "\tset /a \"x+=1\"\n" +
-                "\tGOTO :SymLoop \n" +
-                ")\n" +
-                "set /a \"x-=1\"\n" +
-                "echo \"Redirecting %x% AVDs\"\n" +
-                "\n" +
-                "setlocal EnableDelayedExpansion\n" +
-                "for /L %%i in (0, 1, %x%) do (\n" +
-                "\techo Forwarding AVD !ports[%%i]! to port !redirects[%%i]!\n" +
-                "\tstart telnet.exe localhost !ports[%%i]!\n" +
-                "\tcscript SetupPortsHelper$tmpTime.vbs !redirects[%%i]!\n" +
-                ")\n" +
-                "endlocal\n" +
-                "exit\n"
-        )
-
-        val mainFile = File(tmpDir, "SetupPorts$tmpTime.bat")
-        PrintWriter(mainFile).use {
-            it.println(sb.toString())
-            it.flush()
-        }
-        return mainFile
-    }
-
-    private fun createSetupPortsHelperFile(tmpDir: File, tmpTime: Long): File {
-        val helperFile = File(tmpDir, "SetupPortsHelper$tmpTime.vbs")
-        PrintWriter(helperFile).use {
+    private fun runAppOnDeviceUnix(peer: Int) {
+        val file = Files.createTempFile("runAppOnDevice", ".sh").toFile()
+        PrintWriter(file).use {
             it.println(
-                "set OBJECT=WScript.CreateObject(\"WScript.Shell\")\n" +
-                    "WScript.sleep 50\n" +
-                    "OBJECT.SendKeys \"auth fqvo8zH1j32aFoVB{ENTER}\"\n" + // Hardcoded password is too insignificant to remove from the code
-                    "WScript.sleep 50\n" +
-                    "OBJECT.SendKeys \"redir add udp:\" & WScript.Arguments.Item(0) & \":8090{ENTER}\"\n" +
-                    "WScript.sleep 50\n" +
-                    "OBJECT.SendKeys \"exit{ENTER}\""
+                "#!/bin/sh\n" +
+                    "adb -s emulator-$peer root\n" +
+                    "adb -s emulator-$peer shell am force-stop nl.tudelft.trustchain\n" +
+                    "adb -s emulator-$peer shell am start -n nl.tudelft.trustchain/nl.tudelft.trustchain.app.ui.dashboard.DashboardActivity -e activity fedml -e automationPart 0 -e enableExternalAutomation true\n"
             )
             it.flush()
         }
-        return helperFile
-    }
-
-    private fun loadAutomation(): Automation {
-        val file = File(AutomationCommunity::class.java.classLoader.getResource("automation.config")!!.path)
-        val string = file.readLines().joinToString("")
-        return Json.decodeFromString(string)
+        Runtime.getRuntime().exec("chmod 777 ${file.path}").waitFor()
+        Runtime.getRuntime().exec(file.path)
     }
 }
