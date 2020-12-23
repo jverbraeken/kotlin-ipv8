@@ -3,12 +3,13 @@ package nl.tudelft.ipv8.automation
 import mu.KotlinLogging
 import java.io.File
 import java.io.PrintWriter
+import java.nio.file.Paths
 import kotlin.concurrent.thread
 
 private val logger = KotlinLogging.logger("Initialization")
 
 fun main() {
-    val avdDir = File("C:/Users/jverb/.android/avd")
+    val avdDir = Paths.get(System.getProperty("user.home"), ".android", "avd").toFile()
     val threads = (0 until 2).map { i ->
         thread {
             val port = 5554 + 2 * i
@@ -41,17 +42,18 @@ fun emulatorFilesExist(i: Int, avdDir: File): Boolean {
 
 fun createFiles(i: Int, avdDir: File) {
     val file_emul_i_ini = File(avdDir, "emul_$i.ini")
+    val file_emul_i_avd = File(avdDir, "emul_$i.avd")
+    val relativeLocation = file_emul_i_avd.path.substring(file_emul_i_avd.path.indexOf("avd"))
     PrintWriter(file_emul_i_ini).use {
         it.println(
             "avd.ini.encoding=UTF-8\n" +
-                "path=C:\\Users\\jverb\\.android\\avd\\emul_$i.avd\n" +
-                "path.rel=avd\\emul_$i.avd\n" +
+                "path=${file_emul_i_avd.path}\n" +
+                "path.rel=${relativeLocation}\n" +
                 "target=android-30\n"
         )
         it.flush()
     }
 
-    val file_emul_i_avd = File(avdDir, "emul_$i.avd")
     file_emul_i_avd.mkdir()
     val file_config_ini = File(file_emul_i_avd, "config.ini")
     PrintWriter(file_config_ini).use {
@@ -76,7 +78,7 @@ fun createFiles(i: Int, avdDir: File) {
                 "hw.dPad=no\n" +
                 "hw.device.hash2=MD5:136aea7d36133232419000067684a792\n" +
                 "hw.device.manufacturer=User\n" +
-                "hw.device.name=emul_1\n" +
+                "hw.device.name=emul_$i\n" +
                 "hw.gps=yes\n" +
                 "hw.gpu.enabled=yes\n" +
                 "hw.gpu.mode=auto\n" +
@@ -91,7 +93,7 @@ fun createFiles(i: Int, avdDir: File) {
                 "hw.sensors.orientation=yes\n" +
                 "hw.sensors.proximity=yes\n" +
                 "hw.trackBall=no\n" +
-                "image.sysdir.1=system-images\\android-30\\google_apis\\x86_64\\\n" +
+                "image.sysdir.1=${Paths.get("system-images", "android-30", "google_apis", "x86_64").toFile().relativeTo(File("")).path}\n" +
                 "runtime.network.latency=none\n" +
                 "runtime.network.speed=full\n" +
                 "showDeviceFrame=no\n" +
@@ -124,8 +126,9 @@ fun isEmulatorRunning(port: Int): Boolean {
 }
 
 fun startEmulator(i: Int, port: Int) {
+    val emulatorPath = Paths.get(System.getenv("ANDROID_SDK_ROOT"), "emulator", "emulator").toAbsolutePath()
     Runtime.getRuntime()
-        .exec("C:\\Users\\jverb\\AppData\\Local\\Android\\Sdk\\emulator\\emulator -avd emul_$i -no-snapshot -port $port")
+        .exec("$emulatorPath -avd emul_$i -no-snapshot -port $port")
     var stop = false
     while (!stop) {
         val booting = Runtime.getRuntime().exec("adb -s emulator-$port shell getprop init.svc.bootanim")
@@ -155,12 +158,10 @@ fun getRootAccess(port: Int) {
 }
 
 fun getApkFile(): String {
-    val file_apk_untrimmed =
+    val file_apk =
         Automation::class.java.classLoader.getResource("app-debug.apk")!!.path
-    return file_apk_untrimmed.subSequence(
-        1,
-        file_apk_untrimmed.length
-    ).toString()  // First character is a misplaced slash
+    return if (file_apk.contains("home")) file_apk
+    else file_apk.subSequence(1, file_apk.length).toString()  // First character is a misplaced slash
 }
 
 fun installApk(port: Int, file_apk: String) {
