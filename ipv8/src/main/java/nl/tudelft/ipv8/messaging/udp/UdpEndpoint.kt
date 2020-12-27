@@ -22,7 +22,9 @@ open class UdpEndpoint(
     private val ip: InetAddress,
     private val tftpEndpoint: TFTPEndpoint = TFTPEndpoint(),
     private val utpEndpoint: UTPEndpoint = UTPEndpoint(),
-    private val fastTftpEndpoint: FastTFTPEndpoint = FastTFTPEndpoint()
+    private val fastTftpEndpoint: FastTFTPEndpoint = FastTFTPEndpoint(),
+    private val localNetwork: Boolean = false,
+    private val localNetworksSupportsUTP: Boolean = false
 ) : Endpoint<Peer>() {
     private var socket: DatagramSocket? = null
     private lateinit var network: Network
@@ -74,6 +76,10 @@ open class UdpEndpoint(
         send(peer, data, false)
     }
 
+    fun noPendingUTPMessages(): Boolean {
+        return utpEndpoint.getNumTransmissions() == 0
+    }
+
     /**
      * @param reliable when the package should be retransmitted until the other peer acknowledges that the packet was received
      */
@@ -83,11 +89,15 @@ open class UdpEndpoint(
         if (wan == null) {
             wan = network.wanLog.estimateWan()
         }
-        val redirect = peer.address.ip == wan?.ip ?: IPv4Address.EMPTY
+        val redirect = localNetwork || peer.address.ip == wan?.ip ?: IPv4Address.EMPTY
         val address = if (redirect) {
             IPv4Address("10.0.2.2", peer.address.port)
         } else {
             peer.address
+        }
+
+        if (address.ip == "10.0.2.2" || address.ip == "127.0.0.1") {
+            peer.supportsUTP = true
         }
 
 //      logger.debug("Send packet (${data.size} B) to $address ($peer)")
@@ -97,7 +107,7 @@ open class UdpEndpoint(
                     peer.supportsUTP -> utpEndpoint.send(address, data)
                     peer.supportsFastTFTP -> fastTftpEndpoint.send(address, data)
                     peer.supportsTFTP -> tftpEndpoint.send(address, data)
-                    else -> logger.warn { "The packet is larger then UDP_PAYLOAD_LIMIT and the peer does not support TFTP" }
+                    else -> logger.warn { "The packet is larger then UDP_PAYLOAD_LIMIT and the peer does not support TFTP or UTP: $address" }
                 }
             } else {
                 send(address, data)
@@ -108,7 +118,7 @@ open class UdpEndpoint(
     }
 
     fun send(address: IPv4Address, data: ByteArray) = scope.launch(Dispatchers.IO) {
-        val redirect = address.ip == network.wanLog.estimateWan()?.ip ?: IPv4Address.EMPTY
+        val redirect = localNetwork || address.ip == network.wanLog.estimateWan()?.ip ?: IPv4Address.EMPTY
         val toAddress: IPv4Address = if (redirect) {
             IPv4Address("10.0.2.2", address.port)
         } else {

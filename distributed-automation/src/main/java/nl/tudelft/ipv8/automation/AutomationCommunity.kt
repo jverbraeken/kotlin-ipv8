@@ -6,9 +6,11 @@ import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import mu.KotlinLogging
 import nl.tudelft.ipv8.Community
+import nl.tudelft.ipv8.IPv4Address
 import nl.tudelft.ipv8.Peer
 import nl.tudelft.ipv8.messaging.Deserializable
 import nl.tudelft.ipv8.messaging.Packet
+import nl.tudelft.ipv8.messaging.payload.IntroductionRequestPayload
 import sun.security.action.GetPropertyAction
 import java.io.*
 import java.nio.file.Files
@@ -28,7 +30,7 @@ class AutomationCommunity : Community() {
     override val serviceId = "36b098237ff4debfd0278b8b87c583e1c2cce4b7" // MUST BE THE SAME AS FEDMLCOMMUNITY!!!!
     private lateinit var testFinishedLatch: CountDownLatch
     private lateinit var evaluationProcessor: EvaluationProcessor
-    private lateinit var localPortToWanPort: Map<Int, Int>
+    private lateinit var localPortToWanAddress: Map<Int, IPv4Address>
     private val wanPortToPeer = mutableMapOf<Int, Peer>()
     private var wanPortToHeartbeat = mutableMapOf<Int, Long>()
     private val currentOS = getOS()
@@ -50,7 +52,8 @@ class AutomationCommunity : Community() {
         MSG_NOTIFY_HEARTBEAT(110, MsgNotifyHeartbeat.Deserializer),
         MSG_NEW_TEST_COMMAND(111, MsgNewTestCommand.Deserializer),
         MSG_NOTIFY_EVALUATION(112, MsgNotifyEvaluation.Deserializer),
-        MSG_NOTIFY_FINISHED(113, MsgNotifyFinished.Deserializer)
+        MSG_NOTIFY_FINISHED(113, MsgNotifyFinished.Deserializer),
+        MSG_FORCED_INTRODUCTION(114, MsgForcedIntroduction.Deserializer),
     }
 
     init {
@@ -58,28 +61,19 @@ class AutomationCommunity : Community() {
         messageHandlers[MessageId.MSG_NOTIFY_EVALUATION.id] = ::onMsgNotifyEvaluation
         messageHandlers[MessageId.MSG_NOTIFY_FINISHED.id] = ::onMsgNotifyFinished
 
-        messageListeners[MessageId.MSG_NOTIFY_HEARTBEAT]!!.add(object : MessageListener {
-            override fun onMessageReceived(messageId: MessageId, peer: Peer, payload: Any) {
-//                logger.info { "Heartbeat: ${peer.address.port}" }
-                val port = peer.address.port
-                wanPortToHeartbeat[port] = System.currentTimeMillis()
-                wanPortToPeer[port] = peer
-                peer.supportsUTP = true
-            }
-        })
         messageListeners[MessageId.MSG_NOTIFY_EVALUATION]!!.add(object : MessageListener {
             override fun onMessageReceived(messageId: MessageId, peer: Peer, payload: Any) {
-                val localPort = localPortToWanPort.filterValues { it == peer.address.port }.keys.first()
+                val localPort = localPortToWanAddress.filterValues { it.port == peer.address.port }.keys.first()
                 logger.info { "Evaluation: $localPort" }
                 evaluationProcessor.call(localPort, (payload as MsgNotifyEvaluation).evaluation)
             }
         })
         messageListeners[MessageId.MSG_NOTIFY_FINISHED]!!.add(object : MessageListener {
             override fun onMessageReceived(messageId: MessageId, peer: Peer, payload: Any) {
-                val localPort = localPortToWanPort.filterValues { it == peer.address.port }.keys.first()
+                val localPort = localPortToWanAddress.filterValues { it.port == peer.address.port }.keys.first()
                 logger.info { "Finished: $localPort" }
                 testFinishedLatch.countDown()
-                logger.info { "#finished peers: ${localPortToWanPort.size - testFinishedLatch.count} of ${localPortToWanPort.size} peers" }
+                logger.info { "#finished peers: ${localPortToWanAddress.size - testFinishedLatch.count} of ${localPortToWanAddress.size} peers" }
             }
         })
         startAutomation()
@@ -130,6 +124,16 @@ class AutomationCommunity : Community() {
         messageListeners.getValue(messageId).forEach { it.onMessageReceived(messageId, peer, payload) }
     }
 
+    /*
+     * Request handling
+     */
+    override fun onIntroductionRequest(
+        peer: Peer,
+        payload: IntroductionRequestPayload
+    ) {
+        return
+    }
+
 
     ////////////// AUTOMATION METHODS
 
@@ -146,6 +150,7 @@ class AutomationCommunity : Community() {
 
             for (test in figureConfig.indices) {
                 runTest(figureName, figureConfig[test])
+                return@thread
             }
         }
     }
@@ -158,42 +163,67 @@ class AutomationCommunity : Community() {
 
     private fun runTest(figureName: String, config: List<Map<String, String>>) {
         prepareEnvironment()
-        while (localPortToWanPort.size < config.size) {
-            logger.info { "Too few devices found to run the test: ${localPortToWanPort.size} devices found, ${config.size} devices needed" }
+        while (localPortToWanAddress.size < config.size) {
+            logger.info { "Too few devices found to run the test: ${localPortToWanAddress.size} devices found, ${config.size} devices needed" }
             Thread.sleep(2000)
         }
         logger.error { "Going to test: $figureName - ${config[0]["gar"]}" }
         evaluationProcessor.newSimulation("$figureName - ${config[0]["gar"]}", config)
-        val activeLocalPorts = localPortToWanPort.keys.toList().subList(0, config.size)
+        val activeLocalPorts = localPortToWanAddress.keys.toList().subList(0, config.size)
         testFinishedLatch = CountDownLatch(activeLocalPorts.size)
 
         for ((i, localPort) in activeLocalPorts.withIndex()) {
             val msgNewTestCommand = MsgNewTestCommand(config[i])
             val packet = serializePacket(MessageId.MSG_NEW_TEST_COMMAND.id, msgNewTestCommand, true)
-            send(wanPortToPeer[localPortToWanPort[localPort]]!!, packet, true)
+            val wanPort = localPortToWanAddress[localPort]!!.port
+            val peer = wanPortToPeer[wanPort]!!
+            send(peer, packet, true)
         }
         testFinishedLatch.await()
         logger.warn { "Test finished" }
     }
 
     private fun prepareEnvironment() {
-        localPortToWanPort = getPortMapping()
-        setupPortRedirection(localPortToWanPort)
+        setupPorts()
         runAppOnAllDevices()
+        introduceAllPeers()
     }
 
-    private fun getPortMapping(): Map<Int, Int> {
+    private fun setupPorts() {
+        localPortToWanAddress = getPortMapping()
+
+        logger.debug { "Got port mapping" }
+        /** Need localPortToWanAddress to process heartbeats **/
+        messageListeners[MessageId.MSG_NOTIFY_HEARTBEAT]!!.add(object : MessageListener {
+            override fun onMessageReceived(messageId: MessageId, peer: Peer, payload: Any) {
+                logger.info { "Heartbeat: ${peer.address.port}" }
+                val port = peer.address.port
+                peer.supportsUTP = true
+                wanPortToHeartbeat[port] = System.currentTimeMillis()
+                wanPortToPeer[port] = peer.copy(
+                    lanAddress = IPv4Address("10.0.2.2", port),
+                    wanAddress = IPv4Address(localPortToWanAddress.values.first().ip, port)
+                )
+            }
+        })
+        setupPortRedirection(localPortToWanAddress.map { it.key to it.value.port }.toMap())
+    }
+
+    private fun getPortMapping(): Map<Int, IPv4Address> {
         var getWanPorts = AutomationCommunity::class.java.classLoader.getResource("GetWanPorts.cmd")!!.path
         if (currentOS == OS.UNIX) {
             getWanPorts = AutomationCommunity::class.java.classLoader.getResource("GetWanPorts.sh")!!.path
             Runtime.getRuntime().exec("chmod 777 $getWanPorts").waitFor()
         }
         Runtime.getRuntime().exec(getWanPorts)
-        Thread.sleep(1000)
+        val waitingTime = 1500L
+        logger.debug { "Sleeping $waitingTime ms to finish port mapping script..." }
+        Thread.sleep(waitingTime)
 
         val folder = Paths.get(System.getProperty("user.home"), "Downloads", "wanPorts").toFile()
         return folder.list()!!.associate {
-            it.split('-')[1].toInt() to File(folder, it).readLines()[0].toInt()
+            val fileContents = File(folder, it).readLines()
+            it.split('-')[1].toInt() to IPv4Address(fileContents[0], fileContents[1].toInt())
         }
     }
 
@@ -297,29 +327,32 @@ class AutomationCommunity : Community() {
     private fun runAppOnAllDevices() = runBlocking {
         val maxHeartbeatDelay = 5000L
         val additionalWait = 3000L
-        val restartTime = 10000L
+        val restartTime = 15000L
         var maxTime = System.currentTimeMillis() - maxHeartbeatDelay
-        if (localPortToWanPort.all { wanPortToHeartbeat.getOrDefault(it.value, -1) >= maxTime }) {
+        if (localPortToWanAddress.all { wanPortToHeartbeat.getOrDefault(it.value.port, -1) >= maxTime }) {
             logger.info { "All peers alive" }
             return@runBlocking
         }
 
-        logger.info { "Possibly not all peers alive => waiting a bit longer" }
+        logger.info { "Didn't receive heartbeat from all peers => waiting a bit longer" }
         delay(additionalWait)
         maxTime -= additionalWait
-        if (localPortToWanPort.all { wanPortToHeartbeat.getOrDefault(it.value, -1) >= maxTime }) {
+        if (localPortToWanAddress.all { wanPortToHeartbeat.getOrDefault(it.value.port, -1) >= maxTime }) {
             logger.info { "All peers alive" }
             return@runBlocking
         }
 
-        val deadPeers = localPortToWanPort.filterValues { wanPortToHeartbeat.getOrDefault(it, 0) < maxTime }.keys
-        logger.info { "Peers that are probably dead: $deadPeers" }
+        val deadPeers =
+            localPortToWanAddress.filterValues { wanPortToHeartbeat.getOrDefault(it.port, 0) < maxTime }.keys
+        logger.info { "Peers that might be dead => restarting app on these devices: $deadPeers" }
         deadPeers.forEach {
             runAppOnDevice(it)
         }
+        logger.debug { "Sleeping $restartTime ms to let peers restart the app" }
         delay(restartTime)  // Give time to restart app
         maxTime -= restartTime
-        if (localPortToWanPort.all { wanPortToHeartbeat.getOrDefault(it.value, -1) >= maxTime }) {
+        setupPorts()  // Ports might have changed
+        if (localPortToWanAddress.all { wanPortToHeartbeat.getOrDefault(it.value.port, -1) >= maxTime }) {
             logger.info { "Success restarting devices => all peers alive" }
             return@runBlocking
         }
@@ -360,5 +393,26 @@ class AutomationCommunity : Community() {
         }
         Runtime.getRuntime().exec("chmod 777 ${file.path}").waitFor()
         Runtime.getRuntime().exec(file.path)
+    }
+
+    private fun introduceAllPeers() {
+        logger.debug { "1:      ${wanPortToPeer.entries}" }
+        for ((_, peer) in wanPortToPeer.entries) {
+            val introductions = wanPortToPeer.values.filterNot { it == peer }
+            val wanPorts = introductions.map { it.address.port }
+            val msgForcedIntroduction = MsgForcedIntroduction(
+                wanPorts,
+                supportsTFTP = false,
+                supportsUTP = true,
+                serviceId = serviceId
+            )
+            logger.debug("-> $msgForcedIntroduction")
+            val packet = serializePacket(MessageId.MSG_FORCED_INTRODUCTION.id, msgForcedIntroduction, true)
+            send(peer, packet, true)
+            while (!endpoint.udpEndpoint!!.noPendingUTPMessages()) {
+                logger.debug { "Waiting for all UTP messages to be sent" }
+                Thread.sleep(300)
+            }
+        }
     }
 }

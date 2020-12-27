@@ -33,7 +33,7 @@ private val logger = KotlinLogging.logger("UTPEndpoint")
 
 @Volatile
 private var numTransmissions = 0
-private const val MAX_NUM_TRANSMISSIONS = 4
+private const val MAX_NUM_TRANSMISSIONS = 300
 
 fun canSend(): Boolean {
     synchronized(numTransmissions) {
@@ -59,6 +59,10 @@ class UTPEndpoint : Endpoint<IPv4Address>() {
     var socket: DatagramSocket? = null
     private val connectionIds: MutableMap<Short, ConnectionIdTriplet> = ConcurrentHashMap()
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
+    fun getNumTransmissions(): Int {
+        return numTransmissions
+    }
 
     override fun send(peer: IPv4Address, data: ByteArray) {
         if (canSend()) {

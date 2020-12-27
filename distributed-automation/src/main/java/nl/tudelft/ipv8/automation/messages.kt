@@ -20,7 +20,6 @@ data class MsgNotifyHeartbeat(val unused: Boolean) : Serializable {
 }
 
 data class MsgNewTestCommand(val configuration: Map<String, String>) : Serializable {
-
     override fun serialize(): ByteArray {
         return ByteArrayOutputStream().use { bos ->
             ObjectOutputStream(bos).use { oos ->
@@ -66,6 +65,33 @@ data class MsgNotifyFinished(val unused: Boolean) : Serializable {
     companion object Deserializer : Deserializable<MsgNotifyFinished> {
         override fun deserialize(buffer: ByteArray, offset: Int): Pair<MsgNotifyFinished, Int> {
             return Pair(MsgNotifyFinished(true), buffer.size)
+        }
+    }
+}
+
+data class MsgForcedIntroduction(
+    val wanPorts: List<Int>,
+    val supportsTFTP: Boolean,
+    val supportsUTP: Boolean,
+    val serviceId: String
+) : Serializable {
+    override fun serialize(): ByteArray {
+        return ByteArrayOutputStream().use { bos ->
+            ObjectOutputStream(bos).use { oos ->
+                oos.writeObject(wanPorts)
+                oos.writeBoolean(supportsTFTP)
+                oos.writeBoolean(supportsUTP)
+                oos.writeObject(serviceId)
+                oos.flush()
+            }
+            bos
+        }.toByteArray()
+    }
+
+    companion object Deserializer : Deserializable<MsgForcedIntroduction> {
+        override fun deserialize(buffer: ByteArray, offset: Int): Pair<MsgForcedIntroduction, Int> {
+            // Unused
+            throw RuntimeException("Only to be used by the master, not the slave")
         }
     }
 }
