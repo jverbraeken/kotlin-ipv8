@@ -10,7 +10,10 @@ private val logger = KotlinLogging.logger("Initialization")
 
 fun main() {
     val avdDir = Paths.get(System.getProperty("user.home"), ".android", "avd").toFile()
-    val threads = (0 until 4).map { i ->
+
+    createDevicesFile()
+
+    val threads = (0 until 3).map { i ->
         thread {
             val port = 5554 + 2 * i
 
@@ -27,12 +30,118 @@ fun main() {
             }
 
             getRootAccess(port)
-            installApk(port, getApkFile())
-            grantPermissions(port)
-            runApp(port)
+
+            if (isAppInstalled(port)) {
+//                uninstallApp(port)
+            } else {
+                logger.debug { "Skipping uninstalling app $port" }
+                installApk(port, getApkFile())
+            }
+
+//            installApk(port, getApkFile())
+//            grantPermissions(port)
+//            runApp(port)
         }
     }
     threads.forEach { it.join() }
+}
+
+fun createDevicesFile() {
+    val file = Paths.get(System.getProperty("user.home"), ".android", "devices.xml").toFile()
+    PrintWriter(file).use {
+        it.println(
+            "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>\n" +
+                "<d:devices xmlns:d=\"http://schemas.android.com/sdk/devices/5\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">\n" +
+                "  <d:device>\n" +
+                "    <d:name>MyDevice</d:name>\n" +
+                "    <d:manufacturer>User</d:manufacturer>\n" +
+                "    <d:meta/>\n" +
+                "    <d:hardware>\n" +
+                "      <d:screen>\n" +
+                "        <d:screen-size>large</d:screen-size>\n" +
+                "        <d:diagonal-length>7.00</d:diagonal-length>\n" +
+                "        <d:pixel-density>xxhdpi</d:pixel-density>\n" +
+                "        <d:screen-ratio>long</d:screen-ratio>\n" +
+                "        <d:dimensions>\n" +
+                "          <d:x-dimension>1080</d:x-dimension>\n" +
+                "          <d:y-dimension>3200</d:y-dimension>\n" +
+                "        </d:dimensions>\n" +
+                "        <d:xdpi>482.48</d:xdpi>\n" +
+                "        <d:ydpi>482.48</d:ydpi>\n" +
+                "        <d:touch>\n" +
+                "          <d:multitouch>jazz-hands</d:multitouch>\n" +
+                "          <d:mechanism>finger</d:mechanism>\n" +
+                "          <d:screen-type>capacitive</d:screen-type>\n" +
+                "        </d:touch>\n" +
+                "      </d:screen>\n" +
+                "      <d:networking>\n" +
+                "Bluetooth\n" +
+                "Wifi\n" +
+                "NFC</d:networking>\n" +
+                "      <d:sensors>\n" +
+                "Accelerometer\n" +
+                "Barometer\n" +
+                "Compass\n" +
+                "GPS\n" +
+                "Gyroscope\n" +
+                "LightSensor\n" +
+                "ProximitySensor</d:sensors>\n" +
+                "      <d:mic>true</d:mic>\n" +
+                "      <d:camera>\n" +
+                "        <d:location>back</d:location>\n" +
+                "        <d:autofocus>true</d:autofocus>\n" +
+                "        <d:flash>true</d:flash>\n" +
+                "      </d:camera>\n" +
+                "      <d:camera>\n" +
+                "        <d:location>front</d:location>\n" +
+                "        <d:autofocus>true</d:autofocus>\n" +
+                "        <d:flash>true</d:flash>\n" +
+                "      </d:camera>\n" +
+                "      <d:keyboard>nokeys</d:keyboard>\n" +
+                "      <d:nav>nonav</d:nav>\n" +
+                "      <d:ram unit=\"MiB\">3000</d:ram>\n" +
+                "      <d:buttons>soft</d:buttons>\n" +
+                "      <d:internal-storage unit=\"GiB\">\n" +
+                "4</d:internal-storage>\n" +
+                "      <d:removable-storage unit=\"TiB\"/>\n" +
+                "      <d:cpu>Generic CPU</d:cpu>\n" +
+                "      <d:gpu>Generic GPU</d:gpu>\n" +
+                "      <d:abi>\n" +
+                "armeabi\n" +
+                "armeabi-v7a\n" +
+                "arm64-v8a\n" +
+                "x86\n" +
+                "x86_64\n" +
+                "mips\n" +
+                "mips64</d:abi>\n" +
+                "      <d:dock/>\n" +
+                "      <d:power-type>battery</d:power-type>\n" +
+                "    </d:hardware>\n" +
+                "    <d:software>\n" +
+                "      <d:api-level>-</d:api-level>\n" +
+                "      <d:live-wallpaper-support>true</d:live-wallpaper-support>\n" +
+                "      <d:bluetooth-profiles/>\n" +
+                "      <d:gl-version>2.0</d:gl-version>\n" +
+                "      <d:gl-extensions/>\n" +
+                "      <d:status-bar>false</d:status-bar>\n" +
+                "    </d:software>\n" +
+                "    <d:state default=\"true\" name=\"Portrait\">\n" +
+                "      <d:description>The device in portrait orientation</d:description>\n" +
+                "      <d:screen-orientation>port</d:screen-orientation>\n" +
+                "      <d:keyboard-state>keyssoft</d:keyboard-state>\n" +
+                "      <d:nav-state>navhidden</d:nav-state>\n" +
+                "    </d:state>\n" +
+                "    <d:state name=\"Landscape\">\n" +
+                "      <d:description>The device in landscape orientation</d:description>\n" +
+                "      <d:screen-orientation>land</d:screen-orientation>\n" +
+                "      <d:keyboard-state>keyssoft</d:keyboard-state>\n" +
+                "      <d:nav-state>navhidden</d:nav-state>\n" +
+                "    </d:state>\n" +
+                "  </d:device>\n" +
+                "</d:devices>\n"
+        )
+        it.flush()
+    }
 }
 
 fun emulatorFilesExist(i: Int, avdDir: File): Boolean {
@@ -78,7 +187,7 @@ fun createFiles(i: Int, avdDir: File) {
                 "hw.dPad=no\n" +
                 "hw.device.hash2=MD5:136aea7d36133232419000067684a792\n" +
                 "hw.device.manufacturer=User\n" +
-                "hw.device.name=emul_$i\n" +
+                "hw.device.name=MyDevice\n" +
                 "hw.gps=yes\n" +
                 "hw.gpu.enabled=yes\n" +
                 "hw.gpu.mode=auto\n" +
@@ -154,6 +263,19 @@ fun getRootAccess(port: Int) {
             }
         }
     }
+}
+
+fun isAppInstalled(port: Int): Boolean {
+    val rooting = Runtime.getRuntime().exec("adb -s emulator-$port shell pm list packages nl.tudelft.trustchain")
+    rooting.inputStream.reader(Charsets.UTF_8).use {
+        val result = it.readText()
+        logger.debug { result }
+        return result.startsWith("package:nl.tudelft.trustchain")
+    }
+}
+
+fun uninstallApp(port: Int) {
+    Runtime.getRuntime().exec("adb -s emulator-$port uninstall nl.tudelft.trustchain")
 }
 
 fun getApkFile(): String {

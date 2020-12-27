@@ -353,8 +353,7 @@ abstract class Community : Overlay {
     /*
      * Request handling
      */
-
-    internal open fun onIntroductionRequest(
+    protected open fun onIntroductionRequest(
         peer: Peer,
         payload: IntroductionRequestPayload
     ) {

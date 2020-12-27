@@ -1,8 +1,5 @@
 package nl.tudelft.ipv8.automation
 
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import mu.KotlinLogging
 import nl.tudelft.ipv8.*
 import nl.tudelft.ipv8.keyvault.defaultCryptoProvider
@@ -16,7 +13,7 @@ private val logger = KotlinLogging.logger {}
 
 fun main() {
     val port = System.getProperty(PROPERTY_PORT, DEFAULT_PORT.toString()).toIntOrNull() ?: DEFAULT_PORT
-    val udpEndpoint = UdpEndpoint(port, InetAddress.getByName("0.0.0.0"))
+    val udpEndpoint = UdpEndpoint(port, InetAddress.getByName("0.0.0.0"), localNetworksSupportsUTP = true)
     val endpoint = EndpointAggregator(udpEndpoint, null)
     val automationOverlay = OverlayConfiguration(
         Overlay.Factory(AutomationCommunity::class.java),
