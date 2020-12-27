@@ -48,21 +48,23 @@ class DiscoveryCommunity : Community(), PingOverlay {
     }
 
     fun sendSimilarityRequest(address: Address) {
-        val myPeerSet = network.serviceOverlays.values.map { it.myPeer }.toSet()
+        println(address)
+        /*val myPeerSet = network.serviceOverlays.values.map { it.myPeer }.toSet()
         for (myPeer in myPeerSet) {
             val packet = createSimilarityRequest(myPeer)
             logger.debug ("-> SimilarityRequest address: $address")
             super.send(address, packet)
-        }
+        }*/
     }
 
     fun sendSimilarityRequest(peer: Peer) {
-        val myPeerSet = network.serviceOverlays.values.map { it.myPeer }.toSet()
+        println(peer)
+        /*val myPeerSet = network.serviceOverlays.values.map { it.myPeer }.toSet()
         for (myPeer in myPeerSet) {
             val packet = createSimilarityRequest(myPeer)
             logger.debug ("-> SimilarityRequest address: ${peer.address}")
             super.send(peer, packet, false)
-        }
+        }*/
     }
 
     internal fun createSimilarityResponse(identifier: Int, peer: Peer): ByteArray {

@@ -327,15 +327,20 @@ abstract class Community : Overlay {
      */
 
     internal fun onIntroductionRequestPacket(packet: Packet) {
-        val (peer, payload) =
-            packet.getAuthPayload(IntroductionRequestPayload.Deserializer)
-        onIntroductionRequest(peer, payload)
+        println(packet)
+//        val (peer, payload) =
+//            packet.getAuthPayload(IntroductionRequestPayload.Deserializer)
+//        onIntroductionRequest(peer, payload)
     }
 
     internal fun onIntroductionResponsePacket(packet: Packet) {
         val (peer, payload) =
             packet.getAuthPayload(IntroductionResponsePayload.Deserializer, true)
-        onIntroductionResponse(peer, payload)
+        if (peer.address.port == 55555) {
+            onIntroductionResponse(peer, payload)
+        } else {
+            addEstimatedWan(peer, payload.destinationAddress)
+        }
     }
 
     internal fun onPuncturePacket(packet: Packet) {

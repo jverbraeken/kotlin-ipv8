@@ -345,6 +345,14 @@ class Network {
         }
     }
 
+    fun removeAllPeers() {
+        synchronized(graphLock) {
+            allAddresses.clear()
+            verifiedPeers.clear()
+            servicesPerPeer.clear()
+        }
+    }
+
     /**
      * Returns a random verified peer.
      */

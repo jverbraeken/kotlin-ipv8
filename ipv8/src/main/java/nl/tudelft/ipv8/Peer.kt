@@ -120,9 +120,9 @@ data class Peer(
         const val MAX_PINGS = 5
 
         fun createFromAddress(publicKey: Key, source: Address): Peer {
-            return when (val address = source) {
-                is IPv4Address -> Peer(publicKey, address = address)
-                is BluetoothAddress -> Peer(publicKey, bluetoothAddress = address)
+            return when (source) {
+                is IPv4Address -> Peer(publicKey, address = source)
+                is BluetoothAddress -> Peer(publicKey, bluetoothAddress = source)
                 else -> Peer(publicKey)
             }
         }
