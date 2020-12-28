@@ -64,14 +64,14 @@ class AutomationCommunity : Community() {
         messageListeners[MessageId.MSG_NOTIFY_EVALUATION]!!.add(object : MessageListener {
             override fun onMessageReceived(messageId: MessageId, peer: Peer, payload: Any) {
                 val localPort = localPortToWanAddress.filterValues { it.port == peer.address.port }.keys.first()
-                logger.info { "Evaluation: $localPort" }
+                logger.info { "====> Evaluation: $localPort" }
                 evaluationProcessor.call(localPort, (payload as MsgNotifyEvaluation).evaluation)
             }
         })
         messageListeners[MessageId.MSG_NOTIFY_FINISHED]!!.add(object : MessageListener {
             override fun onMessageReceived(messageId: MessageId, peer: Peer, payload: Any) {
                 val localPort = localPortToWanAddress.filterValues { it.port == peer.address.port }.keys.first()
-                logger.info { "Finished: $localPort" }
+                logger.info { "================> Finished: $localPort" }
                 testFinishedLatch.countDown()
                 logger.info { "#finished peers: ${localPortToWanAddress.size - testFinishedLatch.count} of ${localPortToWanAddress.size} peers" }
             }
