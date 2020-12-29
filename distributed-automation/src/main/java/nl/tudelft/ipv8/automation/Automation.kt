@@ -30,28 +30,31 @@ fun generateConfigs(
     val figureNames = arrayListOf<String>()
 
     // global fixed values
-    val batchSize = automation.fixedValues.getValue("batchSize")
-    val iteratorDistribution = automation.fixedValues.getValue("iteratorDistribution")
-    val maxTestSample = automation.fixedValues.getValue("maxTestSample")
-    val optimizer = automation.fixedValues.getValue("optimizer")
-    val learningRate = automation.fixedValues.getValue("learningRate")
-    val momentum = automation.fixedValues.getValue("momentum")
-    val l2Regularization = automation.fixedValues.getValue("l2Regularization")
-    val communicationPattern = automation.fixedValues.getValue("communicationPattern")
+    val batchSize = automation.fixedValues["batchSize"]
+    val iteratorDistribution = automation.fixedValues["iteratorDistribution"]
+    val maxTestSample = automation.fixedValues["maxTestSample"]
+    val optimizer = automation.fixedValues["optimizer"]
+    val learningRate = automation.fixedValues["learningRate"]
+    val momentum = automation.fixedValues["momentum"]
+    val l2Regularization = automation.fixedValues["l2Regularization"]
+    val communicationPattern = automation.fixedValues["communicationPattern"]
+    val iterationsBeforeEvaluation = automation.fixedValues["iterationsBeforeEvaluation"]
+    val iterationsBeforeSending = automation.fixedValues["iterationsBeforeSending"]
     val figures = automation.figures
 
     for (figure in figures) {
         configurations.add(arrayListOf())
         figureNames.add(figure.name)
-        val dataset = figure.fixedValues.getValue("dataset")
-        val maxIterations = figure.fixedValues.getValue("maxIterations")
-        val behavior = figure.fixedValues.getValue("behavior")
-        val modelPoisoningAttack = figure.fixedValues.getValue("modelPoisoningAttack")
-        val numNodes = figure.fixedValues.getValue("numNodes").toInt()
-        val numAttackers = figure.fixedValues.getValue("numAttackers")
+        val dataset = figure.fixedValues["dataset"]
+        val maxIterations = figure.fixedValues["maxIterations"]
+        val behavior = figure.fixedValues["behavior"]
+        val modelPoisoningAttack = figure.fixedValues["modelPoisoningAttack"]
+        val numNodes = figure.fixedValues["numNodes"].toInt()
+        val numAttackers = figure.fixedValues["numAttackers"]
         val firstNodeSpeed = figure.fixedValues["firstNodeSpeed"]?.toInt() ?: 0
         val firstNodeJoiningLate = figure.fixedValues["firstNodeJoiningLate"]?.equals("true") ?: false
         val overrideIteratorDistribution = figure.iteratorDistributions
+        val overrideBatchSize = figure.fixedValues["batchSize"]
 
         for (test in figure.tests) {
             configurations.last().add(arrayListOf())
@@ -64,7 +67,7 @@ fun generateConfigs(
                 val configuration = mapOf(
                     Pair("dataset", dataset),
 
-                    Pair("batchSize", batchSize),
+                    Pair("batchSize", overrideBatchSize ?: batchSize),
                     Pair("maxTestSamples", maxTestSample),
                     Pair("iteratorDistribution", distribution),
 
@@ -79,6 +82,8 @@ fun generateConfigs(
                     Pair("behavior", behavior),
                     Pair("slowdown", slowdown),
                     Pair("joiningLate", joiningLate),
+                    Pair("iterationsBeforeEvaluation", iterationsBeforeEvaluation),
+                    Pair("iterationsBeforeSending", iterationsBeforeSending),
 
                     Pair("modelPoisoningAttack", modelPoisoningAttack),
                     Pair("numAttackers", numAttackers)
