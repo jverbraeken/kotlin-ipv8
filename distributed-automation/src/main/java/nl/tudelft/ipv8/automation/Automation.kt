@@ -55,13 +55,14 @@ fun generateConfigs(
         val firstNodeJoiningLate = figure.fixedValues["firstNodeJoiningLate"]?.equals("true") ?: false
         val overrideIteratorDistribution = figure.iteratorDistributions
         val overrideBatchSize = figure.fixedValues["batchSize"]
+        val overrideIteratorDistributionSoft = figure.fixedValues["iteratorDistribution"]
 
         for (test in figure.tests) {
             configurations.last().add(arrayListOf())
             val gar = test.gar
 
             for (node in 0 until numNodes) {
-                val distribution = overrideIteratorDistribution?.get(node % overrideIteratorDistribution.size) ?: iteratorDistribution
+                val distribution = overrideIteratorDistribution?.get(node % overrideIteratorDistribution.size) ?: overrideIteratorDistributionSoft ?: iteratorDistribution
                 val slowdown = if ((node == 0 && firstNodeSpeed == -1) || (node != 0 && firstNodeSpeed == 1)) "d2" else "none"
                 val joiningLate = if (node == 0 && firstNodeJoiningLate) "n2" else "n0"
                 val configuration = mapOf(
