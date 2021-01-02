@@ -83,7 +83,9 @@ class UTPEndpoint : Endpoint<IPv4Address>() {
                     var error = false
                     try {
                         withTimeout(1000) {
-                            connectFuture.block()
+                            scope.launch(Dispatchers.IO) {
+                                connectFuture.block()
+                            }.join()
                         }
                     } catch (e: TimeoutCancellationException) {
                         logger.error { "Timeout connecting to ${peer.ip}:${peer.port}" }
