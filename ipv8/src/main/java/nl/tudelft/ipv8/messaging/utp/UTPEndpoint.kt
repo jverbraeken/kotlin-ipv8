@@ -1,9 +1,6 @@
 package nl.tudelft.ipv8.messaging.utp
 
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
 import mu.KotlinLogging
 import nl.tudelft.ipv8.IPv4Address
 import nl.tudelft.ipv8.messaging.Endpoint
@@ -83,25 +80,35 @@ class UTPEndpoint : Endpoint<IPv4Address>() {
                     registerChannel(channel, peer.port)
                     val connectFuture = channel.connect(InetSocketAddress(peer.ip, peer.port))
                     logger.debug { "Blocking" }
-                    connectFuture.block()
-                    if (connectFuture.isSuccessful) {
-                        logger.debug { "Writing to ${peer.ip}:${peer.port}" }
-                        val writeFuture = channel.write(ByteBuffer.wrap(compressedData))
-                        logger.debug { "Blocking again to ${peer.ip}:${peer.port}" }
-                        writeFuture.block()
-                        if (!writeFuture.isSuccessful) {
-                            logger.error { "Error writing data to ${peer.ip}:${peer.port}" }
-                            endTransmission()
+                    var error = false
+                    try {
+                        withTimeout(1000) {
+                            connectFuture.block()
                         }
-                        logger.debug { "Closing channel (${peer.ip}:${peer.port})" }
-                        channel.close()
-                        logger.debug { "Done (${peer.ip}:${peer.port})" }
-                    } else {
-                        logger.error { "Error establishing connection to ${peer.ip}:${peer.port}" }
+                    } catch (e: TimeoutCancellationException) {
+                        logger.error { "Timeout connecting to ${peer.ip}:${peer.port}" }
+                        error = true
+                    }
+                    if (!error) {
+                        if (connectFuture.isSuccessful) {
+                            logger.debug { "Writing to ${peer.ip}:${peer.port}" }
+                            val writeFuture = channel.write(ByteBuffer.wrap(compressedData))
+                            logger.debug { "Blocking again to ${peer.ip}:${peer.port}" }
+                            writeFuture.block()
+                            if (!writeFuture.isSuccessful) {
+                                logger.error { "Error writing data to ${peer.ip}:${peer.port}" }
+                                endTransmission()
+                            }
+                            logger.debug { "Closing channel (${peer.ip}:${peer.port})" }
+                            channel.close()
+                            logger.debug { "Done (${peer.ip}:${peer.port})" }
+                        } else {
+                            logger.error { "Error establishing connection to ${peer.ip}:${peer.port}" }
+                        }
                     }
                     endTransmission()
                 }
-                logger.warn { "Successfully sent file in ${time}ms" }
+                logger.warn { "Timed: ${time}ms" }
             }
         } else {
             logger.warn { "Not sending UTP packet because still busy sending..." }
