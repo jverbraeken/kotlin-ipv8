@@ -74,14 +74,6 @@ class EvaluationProcessor(
         }
         fileResults.createNewFile()
         fileMeta.createNewFile()
-
-        fixedRateTimer(period = 2500) {
-            PrintWriter(fileResults).use { pw ->
-                synchronized(evaluationLines) {
-                    evaluationLines.forEach(pw::println)
-                }
-            }
-        }
     }
 
     fun newSimulation(
@@ -127,5 +119,6 @@ class EvaluationProcessor(
 
     fun call(peer: Int, evaluation: String) {
         evaluationLines.add("$peer, $evaluation")
+            PrintWriter(fileResults).use { pw -> evaluationLines.forEach(pw::println) }
     }
 }

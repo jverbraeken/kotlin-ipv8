@@ -30,27 +30,27 @@ fun generateConfigs(
     val figureNames = arrayListOf<String>()
 
     // global fixed values
-    val batchSize = automation.fixedValues["batchSize"]
-    val iteratorDistribution = automation.fixedValues["iteratorDistribution"]
-    val maxTestSample = automation.fixedValues["maxTestSample"]
-    val optimizer = automation.fixedValues["optimizer"]
-    val learningRate = automation.fixedValues["learningRate"]
-    val momentum = automation.fixedValues["momentum"]
-    val l2Regularization = automation.fixedValues["l2Regularization"]
-    val communicationPattern = automation.fixedValues["communicationPattern"]
-    val iterationsBeforeEvaluation = automation.fixedValues["iterationsBeforeEvaluation"]
-    val iterationsBeforeSending = automation.fixedValues["iterationsBeforeSending"]
+    val batchSize = automation.fixedValues["batchSize"]!!
+    val iteratorDistribution = automation.fixedValues["iteratorDistribution"]!!
+    val maxTestSample = automation.fixedValues["maxTestSample"]!!
+    val optimizer = automation.fixedValues["optimizer"]!!
+    val learningRate = automation.fixedValues["learningRate"]!!
+    val momentum = automation.fixedValues["momentum"]!!
+    val l2Regularization = automation.fixedValues["l2Regularization"]!!
+    val communicationPattern = automation.fixedValues["communicationPattern"]!!
+    val iterationsBeforeEvaluation = automation.fixedValues["iterationsBeforeEvaluation"]!!
+    val iterationsBeforeSending = automation.fixedValues["iterationsBeforeSending"]!!
     val figures = automation.figures
 
     for (figure in figures) {
         configurations.add(arrayListOf())
         figureNames.add(figure.name)
-        val dataset = figure.fixedValues["dataset"]
-        val maxIterations = figure.fixedValues["maxIterations"]
-        val behavior = figure.fixedValues["behavior"]
-        val modelPoisoningAttack = figure.fixedValues["modelPoisoningAttack"]
-        val numNodes = figure.fixedValues["numNodes"].toInt()
-        val numAttackers = figure.fixedValues["numAttackers"]
+        val dataset = figure.fixedValues["dataset"]!!
+        val maxIterations = figure.fixedValues["maxIterations"]!!
+        val behavior = figure.fixedValues["behavior"]!!
+        val modelPoisoningAttack = figure.fixedValues["modelPoisoningAttack"]!!
+        val numNodes = figure.fixedValues["numNodes"]!!.toInt()
+        val numAttackers = figure.fixedValues["numAttackers"]!!
         val firstNodeSpeed = figure.fixedValues["firstNodeSpeed"]?.toInt() ?: 0
         val firstNodeJoiningLate = figure.fixedValues["firstNodeJoiningLate"]?.equals("true") ?: false
         val overrideIteratorDistribution = figure.iteratorDistributions
