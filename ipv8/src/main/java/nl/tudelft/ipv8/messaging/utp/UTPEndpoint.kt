@@ -99,15 +99,14 @@ class UTPEndpoint : Endpoint<IPv4Address>() {
                             writeFuture.block()
                             if (!writeFuture.isSuccessful) {
                                 logger.error { "Error writing data to ${peer.ip}:${peer.port}" }
-                                endTransmission()
                             }
-                            logger.debug { "Closing channel (${peer.ip}:${peer.port})" }
-                            channel.close()
-                            logger.debug { "Done (${peer.ip}:${peer.port})" }
                         } else {
                             logger.error { "Error establishing connection to ${peer.ip}:${peer.port}" }
                         }
                     }
+                    logger.debug { "Closing channel (${peer.ip}:${peer.port})" }
+                    channel.close()
+                    logger.debug { "Done (${peer.ip}:${peer.port})" }
                     endTransmission()
                 }
                 logger.warn { "Timed: ${time}ms" }
