@@ -11,7 +11,6 @@ import nl.tudelft.ipv8.Peer
 import nl.tudelft.ipv8.messaging.Deserializable
 import nl.tudelft.ipv8.messaging.Packet
 import nl.tudelft.ipv8.messaging.payload.IntroductionRequestPayload
-import sun.security.action.GetPropertyAction
 import java.io.*
 import java.nio.file.Files
 import java.nio.file.Paths
@@ -173,7 +172,7 @@ class AutomationCommunity : Community() {
         testFinishedLatch = CountDownLatch(activeLocalPorts.size)
 
         for ((i, localPort) in activeLocalPorts.withIndex()) {
-            val msgNewTestCommand = MsgNewTestCommand(config[i])
+            val msgNewTestCommand = MsgNewTestCommand(config[i], figureName)
             val packet = serializePacket(MessageId.MSG_NEW_TEST_COMMAND.id, msgNewTestCommand, true)
             val wanPort = localPortToWanAddress[localPort]!!.port
             val peer = wanPortToPeer[wanPort]!!
@@ -228,7 +227,7 @@ class AutomationCommunity : Community() {
     }
 
     private fun setupPortRedirection(portMapping: Map<Int, Int>) {
-        val tmpDir = Paths.get(doPrivileged(GetPropertyAction("java.io.tmpdir"))).toFile()
+        val tmpDir = Paths.get(System.getProperty("java.io.tmpdir")).toFile()
         val tmpTime = System.currentTimeMillis()
         val setupPortsFile = if (currentOS == OS.WINDOWS) {
             createSetupPortsFileWindows(tmpDir, tmpTime, portMapping)

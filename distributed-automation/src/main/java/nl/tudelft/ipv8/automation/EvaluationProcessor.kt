@@ -34,6 +34,8 @@ class EvaluationProcessor(
         "numEpochs",
         "slowdown",
         "joiningLate",
+        "iterationsBeforeEvaluation",
+        "iterationsBeforeSending",
 
         "local model poisoning attack",
         "#attackers"
@@ -72,14 +74,6 @@ class EvaluationProcessor(
         }
         fileResults.createNewFile()
         fileMeta.createNewFile()
-
-        fixedRateTimer(period = 2500) {
-            PrintWriter(fileResults).use { pw ->
-                synchronized(evaluationLines) {
-                    evaluationLines.forEach(pw::println)
-                }
-            }
-        }
     }
 
     fun newSimulation(
@@ -115,6 +109,8 @@ class EvaluationProcessor(
             configuration["maxIterations"],
             configuration["slowdown"],
             configuration["joiningLate"],
+            configuration["iterationsBeforeEvaluation"] ?: "null",
+            configuration["iterationsBeforeSending"] ?: "null",
 
             configuration["modelPoisoningAttack"],
             configuration["numAttackers"]
@@ -123,5 +119,6 @@ class EvaluationProcessor(
 
     fun call(peer: Int, evaluation: String) {
         evaluationLines.add("$peer, $evaluation")
+            PrintWriter(fileResults).use { pw -> evaluationLines.forEach(pw::println) }
     }
 }

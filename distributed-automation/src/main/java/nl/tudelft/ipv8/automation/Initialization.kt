@@ -13,7 +13,7 @@ fun main() {
 
     createDevicesFile()
 
-    val threads = (0 until 3).map { i ->
+    val threads = (0 until 4).map { i ->
         thread {
             val port = 5554 + 2 * i
 
@@ -32,15 +32,15 @@ fun main() {
             getRootAccess(port)
 
             if (isAppInstalled(port)) {
-//                uninstallApp(port)
+                uninstallApp(port)
             } else {
                 logger.debug { "Skipping uninstalling app $port" }
-                installApk(port, getApkFile())
+//                installApk(port, getApkFile())
             }
 
-//            installApk(port, getApkFile())
-//            grantPermissions(port)
-//            runApp(port)
+            installApk(port, getApkFile())
+            grantPermissions(port)
+            runApp(port)
         }
     }
     threads.forEach { it.join() }
@@ -223,9 +223,10 @@ fun createFiles(i: Int, avdDir: File) {
 }
 
 fun isEmulatorRunning(port: Int): Boolean {
-    val running = Runtime.getRuntime().exec("adb devices") // -s emulator-$i shell getprop")
+    val running = Runtime.getRuntime().exec("adb devices")  // -s emulator-$i shell getprop")
     running.inputStream.bufferedReader(Charsets.UTF_8).use {
         val txt = it.readLines().joinToString()
+        logger.debug { txt }
         if (txt.contains(port.toString())) {
             return true
         }
@@ -248,6 +249,7 @@ fun startEmulator(i: Int, port: Int) {
         logger.debug { "Waiting until booted..." }
         Thread.sleep(1000)
     }
+    Thread.sleep(20000)
 }
 
 fun getRootAccess(port: Int) {

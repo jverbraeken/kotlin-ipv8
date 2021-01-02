@@ -19,11 +19,12 @@ data class MsgNotifyHeartbeat(val unused: Boolean) : Serializable {
     }
 }
 
-data class MsgNewTestCommand(val configuration: Map<String, String>) : Serializable {
+data class MsgNewTestCommand(val configuration: Map<String, String>, val figureName: String) : Serializable {
     override fun serialize(): ByteArray {
         return ByteArrayOutputStream().use { bos ->
             ObjectOutputStream(bos).use { oos ->
                 oos.writeObject(configuration)
+                oos.writeObject(figureName)
                 oos.flush()
             }
             bos

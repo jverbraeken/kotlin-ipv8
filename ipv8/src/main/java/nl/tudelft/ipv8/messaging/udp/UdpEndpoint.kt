@@ -235,18 +235,14 @@ open class UdpEndpoint(
     }
 
     internal fun handleReceivedPacket(receivePacket: DatagramPacket) {
-        logger.debug("Received packet from " + "${receivePacket.address.hostAddress}:${receivePacket.port}")
+//        logger.debug("Received packet from " + "${receivePacket.address.hostAddress}:${receivePacket.port}")
 
         // Check whether prefix is IPv8, TFTP, or UTP
         when (receivePacket.data[0]) {
             Community.PREFIX_IPV8 -> {
-                val sourceAddress =
-                    IPv4Address(receivePacket.address.hostAddress, receivePacket.port)
-                val packet =
-                    Packet(sourceAddress, receivePacket.data.copyOf(receivePacket.length))
-                logger.debug(
-                    "Received UDP packet (${receivePacket.length} B) from $sourceAddress"
-                )
+                val sourceAddress = IPv4Address(receivePacket.address.hostAddress, receivePacket.port)
+                val packet = Packet(sourceAddress, receivePacket.data.copyOf(receivePacket.length))
+//                logger.debug("Received UDP packet (${receivePacket.length} B) from $sourceAddress")
                 notifyListeners(packet)
             }
             TFTPEndpoint.PREFIX_TFTP -> {
