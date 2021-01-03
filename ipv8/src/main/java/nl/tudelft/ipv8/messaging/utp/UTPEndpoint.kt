@@ -77,7 +77,7 @@ class UTPEndpoint : Endpoint<IPv4Address>() {
                     val channel = UtpSocketChannel.open(socket!!)
                     logger.debug { "Connecting to channel to ${peer.ip}:${peer.port}" }
                     channel.setupConnectionId()
-                    registerChannel(channel, peer.port)
+                    registerChannel(channel, peer.port, channel.connectionIdSending, channel.connectionIdReceiving)
                     val connectFuture = channel.connect(InetSocketAddress(peer.ip, peer.port))
                     logger.debug { "Blocking" }
                     var error = false
@@ -141,8 +141,13 @@ class UTPEndpoint : Endpoint<IPv4Address>() {
         }
         if (packet != null) {
             val channel = UtpSocketChannel.open(socket)
+
+            val utpPacket = UtpPacketUtils.extractUtpPacket(packet)
+            val connIdSender: Short = utpPacket.connectionId
+            val connIdReceiver = (connIdSender + 1).toShort()
+
+            registerChannel(channel, packet.port, connIdSender, connIdReceiver)
             channel.receivePacket(packet)
-            registerChannel(channel, packet.port)
 
             scope.launch(Dispatchers.IO) {
                 val sourceAddress = IPv4Address(packet.address.hostAddress, packet.port)
@@ -181,13 +186,13 @@ class UTPEndpoint : Endpoint<IPv4Address>() {
         return false
     }
 
-    private fun registerChannel(channel: UtpSocketChannel, port: Int): Boolean {
-        logger.debug { "Registering channel with connectionId = ${channel.connectionIdReceiving}, port: $port" }
+    private fun registerChannel(channel: UtpSocketChannel, port: Int, connectionIdSending: Short, connectionIdReceiving: Short): Boolean {
+        logger.debug { "Registering channel with connectionId = ${connectionIdReceiving}, port: $port" }
         val triplet =
-            ConnectionIdTriplet(channel, channel.connectionIdReceiving, channel.connectionIdSending)
+            ConnectionIdTriplet(channel, connectionIdReceiving, connectionIdSending)
         if (isChannelRegistrationNecessary(channel)) {
             logger.debug { "Channel registration was necessary: $port" }
-            connectionIds[channel.connectionIdReceiving] = triplet
+            connectionIds[connectionIdReceiving] = triplet
             return true
         } else {
             logger.debug { "Channel registration was NOT necessary: $port" }

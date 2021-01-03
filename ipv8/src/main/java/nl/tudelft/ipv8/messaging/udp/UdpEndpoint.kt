@@ -14,6 +14,7 @@ import nl.tudelft.ipv8.messaging.utp.UTPEndpoint
 import nl.tudelft.ipv8.peerdiscovery.Network
 import java.io.IOException
 import java.net.*
+import kotlin.concurrent.thread
 
 private val logger = KotlinLogging.logger {}
 
@@ -83,7 +84,7 @@ open class UdpEndpoint(
     /**
      * @param reliable when the package should be retransmitted until the other peer acknowledges that the packet was received
      */
-    fun send(peer: Peer, data: ByteArray, reliable: Boolean) = scope.launch(Dispatchers.IO) {
+    fun send(peer: Peer, data: ByteArray, reliable: Boolean) = thread {
         if (!isOpen()) throw IllegalStateException("UDP socket is closed")
 
         if (wan == null) {
@@ -104,7 +105,7 @@ open class UdpEndpoint(
         try {
             if (data.size > UDP_PAYLOAD_LIMIT || reliable) {
                 when {
-                    peer.supportsUTP -> utpEndpoint.send(address, data)
+                    peer.supportsUTP -> tftpEndpoint.send(address, data)
                     peer.supportsFastTFTP -> fastTftpEndpoint.send(address, data)
                     peer.supportsTFTP -> tftpEndpoint.send(address, data)
                     else -> logger.warn { "The packet is larger then UDP_PAYLOAD_LIMIT and the peer does not support TFTP or UTP: $address" }

@@ -10,6 +10,7 @@ import org.apache.commons.net.DatagramSocketFactory
 import org.apache.commons.net.tftp.*
 import java.io.ByteArrayInputStream
 import java.net.*
+import kotlin.concurrent.thread
 
 private val logger = KotlinLogging.logger {}
 
@@ -26,7 +27,7 @@ class TFTPEndpoint(
 ) : Endpoint<IPv4Address>() {
     private val tftpSocket: TFTPSocket = TFTPSocket()
     internal var tftpServer = TFTPServer { packet ->
-        scope.launch(Dispatchers.IO) {
+        thread {
             val datagram = packet.newDatagram()
             val wrappedData = byteArrayOf() + PREFIX_TFTP + datagram.data
             datagram.setData(wrappedData, 0, datagram.length + 1)
@@ -63,7 +64,7 @@ class TFTPEndpoint(
     }
 
     override fun send(peer: IPv4Address, data: ByteArray) {
-        scope.launch(Dispatchers.IO) {
+        thread {
             val inputStream = ByteArrayInputStream(data)
             val inetAddress = Inet4Address.getByName(peer.ip)
 
