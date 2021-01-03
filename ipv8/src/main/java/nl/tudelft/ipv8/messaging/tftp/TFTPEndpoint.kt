@@ -198,7 +198,7 @@ class TFTPEndpoint : Endpoint<IPv4Address>() {
                         val tftpPacket = TFTPPacket.newTFTPPacket(packet)
                         logger.debug {
                             "Client received TFTP packet of type ${tftpPacket.type} " +
-                                "from ${received.address.hostName} (${packet.length} B)"
+                                "from ${received.address.hostName}:${received.port} (${packet.length} B)"
                         }
                     }
                 } catch (e: TimeoutCancellationException) {

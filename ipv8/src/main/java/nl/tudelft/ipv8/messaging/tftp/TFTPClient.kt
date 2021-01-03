@@ -43,11 +43,11 @@ class TFTPClient : TFTP() {
             var timeouts = 0
             do {
                 try {
-                    logger.debug { "Waiting for receive..." }
+                    logger.debug { "Waiting for receive... ($host:$port)" }
 
                     val received = receive()
 
-                    logger.debug { "Received TFTP packet of type ${received.type}" }
+                    logger.debug { "Received TFTP packet of type ${received.type} ($host:$port)" }
 
                     val recdAddress = received.address
                     val recdPort = received.port
@@ -64,7 +64,7 @@ class TFTPClient : TFTP() {
                             }
                             TFTPPacket.ACKNOWLEDGEMENT -> {
                                 val lastBlock = (received as TFTPAckPacket).blockNumber
-                                logger.warn { "ACK block: $lastBlock, expected: $block" }
+                                logger.warn { "ACK block: $lastBlock, expected: $block ($host:$port)" }
                                 if (lastBlock == block) {
                                     ++block
                                     if (block > 65535) {
@@ -123,6 +123,6 @@ class TFTPClient : TFTP() {
             sent = data
             _totalBytesSent += totalThisPacket.toLong()
         } while (true) // loops until after lastAckWait is set
-        logger.debug { "sendFile finished" }
+        logger.debug { "sendFile finished ($host:$port)" }
     }
 }
