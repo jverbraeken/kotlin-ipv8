@@ -75,6 +75,7 @@ class TFTPClient : TFTP() {
                                 } else {
                                     logger.debug { "discardPackets" }
                                     discardPackets()
+                                    send(sent)
                                 }
                             }
                             else -> throw IOException("Received unexpected packet type.")
