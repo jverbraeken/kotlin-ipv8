@@ -14,10 +14,10 @@ private val logger = KotlinLogging.logger {}
 
 // First argument is your password to get sudo rights => needed to increase UDP buffers
 fun main(args: Array<String>) {
-    updateSysctl(args[0], "net.core.rmem_default", 80000000)
-    updateSysctl(args[0], "net.core.rmem_max", 80000000)
-    updateSysctl(args[0], "net.core.wmem_default", 80000000)
-    updateSysctl(args[0], "net.core.wmem_max", 80000000)
+//    updateSysctl(args[0], "net.core.rmem_default", 80000000)
+//    updateSysctl(args[0], "net.core.rmem_max", 80000000)
+//    updateSysctl(args[0], "net.core.wmem_default", 80000000)
+//    updateSysctl(args[0], "net.core.wmem_max", 80000000)
     val port = System.getProperty(PROPERTY_PORT, DEFAULT_PORT.toString()).toIntOrNull() ?: DEFAULT_PORT
     val udpEndpoint = UdpEndpoint(port, InetAddress.getByName("0.0.0.0"), localNetworksSupportsUTP = true)
     val endpoint = EndpointAggregator(udpEndpoint, null)

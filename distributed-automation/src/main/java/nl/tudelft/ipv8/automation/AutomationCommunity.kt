@@ -326,7 +326,7 @@ class AutomationCommunity : Community() {
     private fun runAppOnAllDevices() = runBlocking {
         val maxHeartbeatDelay = 5000L
         val additionalWait = 3000L
-        val restartTime = 15000L
+        val restartTime = 20000L
         var maxTime = System.currentTimeMillis() - maxHeartbeatDelay
         if (localPortToWanAddress.all { wanPortToHeartbeat.getOrDefault(it.value.port, -1) >= maxTime }) {
             logger.info { "All peers alive" }
@@ -408,7 +408,7 @@ class AutomationCommunity : Community() {
             logger.debug("-> $msgForcedIntroduction")
             val packet = serializePacket(MessageId.MSG_FORCED_INTRODUCTION.id, msgForcedIntroduction, true)
             send(peer, packet, true)
-            while (!endpoint.udpEndpoint!!.noPendingUTPMessages()) {
+            while (!endpoint.udpEndpoint!!.noPendingTFTPMessages()) {
                 logger.debug { "Waiting for all UTP messages to be sent" }
                 Thread.sleep(300)
             }

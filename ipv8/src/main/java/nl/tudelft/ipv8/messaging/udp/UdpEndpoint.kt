@@ -76,6 +76,10 @@ open class UdpEndpoint(
         send(peer, data, false)
     }
 
+    fun noPendingTFTPMessages(): Boolean {
+        return tftpEndpoint.getNumTransmissions() == 0
+    }
+
     fun noPendingUTPMessages(): Boolean {
         return utpEndpoint.getNumTransmissions() == 0
     }
@@ -104,7 +108,7 @@ open class UdpEndpoint(
         try {
             if (data.size > UDP_PAYLOAD_LIMIT || reliable) {
                 when {
-                    peer.supportsUTP -> utpEndpoint.send(address, data)
+                    peer.supportsUTP -> tftpEndpoint.send(address, data)
                     peer.supportsFastTFTP -> fastTftpEndpoint.send(address, data)
                     peer.supportsTFTP -> tftpEndpoint.send(address, data)
                     else -> logger.warn { "The packet is larger then UDP_PAYLOAD_LIMIT and the peer does not support TFTP or UTP: $address" }

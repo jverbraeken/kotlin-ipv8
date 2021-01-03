@@ -15,6 +15,23 @@ import kotlin.concurrent.thread
 
 private val logger = KotlinLogging.logger {}
 
+@Volatile
+private var numTransmissions = 0
+
+private fun startTransmission() {
+    synchronized(numTransmissions) {
+        numTransmissions++
+        logger.debug { "increased numTransmissions to $numTransmissions" }
+    }
+}
+
+private fun endTransmission() {
+    synchronized(numTransmissions) {
+        numTransmissions--
+        logger.debug { "decreased numTransmissions to $numTransmissions" }
+    }
+}
+
 /**
  * An endpoint that allows to send binary data blobs that are larger than UDP packet size over UDP.
  * It uses a TFTP-like protocol with adjusted client and server to share a single socket instead
@@ -37,14 +54,19 @@ class TFTPEndpoint : Endpoint<IPv4Address>() {
         return socket?.isBound == true
     }
 
+    fun getNumTransmissions(): Int {
+        return numTransmissions
+    }
+
     override fun send(peer: IPv4Address, data: ByteArray) {
         thread {
+            startTransmission()
             val inputStream = ByteArrayInputStream(data)
             val inetAddress = Inet4Address.getByName(peer.ip)
-            tftpClients[peer] = TFTPClient()
-            val tftpClient = tftpClients[peer]!!
-            tftpSockets[peer] = TFTPSocket()
-            val tftpSocket = tftpSockets[peer]!!
+            val tftpClient = TFTPClient()
+            tftpClients[peer] = tftpClient
+            val tftpSocket = TFTPSocket()
+            tftpSockets[peer] = tftpSocket
             tftpClient.setDatagramSocketFactory(object : DatagramSocketFactory {
                 override fun createDatagramSocket(): DatagramSocket {
                     return tftpSocket
@@ -59,13 +81,17 @@ class TFTPEndpoint : Endpoint<IPv4Address>() {
                 }
             })
             tftpClient.open()
-            tftpClient.sendFile(
-                TFTP_FILENAME,
-                TFTP.BINARY_MODE,
-                inputStream,
-                inetAddress,
-                peer.port
-            )
+            try {
+                tftpClient.sendFile(
+                    TFTP_FILENAME,
+                    TFTP.BINARY_MODE,
+                    inputStream,
+                    inetAddress,
+                    peer.port
+                )
+            } finally {
+                endTransmission()
+            }
         }
     }
 
