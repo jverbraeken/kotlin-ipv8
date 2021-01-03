@@ -91,11 +91,11 @@ class TFTPClient : TFTP() {
                     }
                 } catch (e: SocketException) {
                     if (++timeouts >= DEFAULT_MAX_TIMEOUTS) {
-                        throw IOException("Connection timed out")
+                        throw IOException("Connection timed out ($host:$port)")
                     }
                 } catch (e: InterruptedIOException) {
                     if (++timeouts >= DEFAULT_MAX_TIMEOUTS) {
-                        throw IOException("Connection timed out")
+                        throw IOException("Connection timed out ($host:$port)")
                     }
                 } catch (e: TFTPPacketException) {
                     throw IOException("Bad packet: " + e.message)
@@ -109,9 +109,7 @@ class TFTPClient : TFTP() {
             var offset = 4
             var totalThisPacket = 0
             var bytesRead = 0
-            while (dataLength > 0 &&
-                input.read(_sendBuffer, offset, dataLength).also { bytesRead = it } > 0
-            ) {
+            while (dataLength > 0 && input.read(_sendBuffer, offset, dataLength).also { bytesRead = it } > 0) {
                 offset += bytesRead
                 dataLength -= bytesRead
                 totalThisPacket += bytesRead

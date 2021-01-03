@@ -408,10 +408,10 @@ class AutomationCommunity : Community() {
             logger.debug("-> $msgForcedIntroduction")
             val packet = serializePacket(MessageId.MSG_FORCED_INTRODUCTION.id, msgForcedIntroduction, true)
             send(peer, packet, true)
-            while (!endpoint.udpEndpoint!!.noPendingTFTPMessages()) {
-                logger.debug { "Waiting for all UTP messages to be sent" }
-                Thread.sleep(300)
-            }
+        }
+        while (!endpoint.udpEndpoint!!.noPendingTFTPMessages()) {
+            logger.debug { "Waiting for all UTP messages to be sent" }
+            Thread.sleep(300)
         }
     }
 }
