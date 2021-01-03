@@ -11,6 +11,7 @@ import org.apache.commons.net.DatagramSocketFactory
 import org.apache.commons.net.tftp.*
 import java.io.ByteArrayInputStream
 import java.net.*
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.concurrent.thread
 
 private val logger = KotlinLogging.logger {}
@@ -41,9 +42,9 @@ private fun endTransmission() {
  * IPv8 UDP packets in UDPEndpoint which are prefixed with [Community.PREFIX_IPV8].
  */
 class TFTPEndpoint : Endpoint<IPv4Address>() {
-    private val tftpSockets = mutableMapOf<IPv4Address, TFTPSocket>()
-    private val tftpClients = mutableMapOf<IPv4Address, TFTPClient>()
-    internal var tftpServers = mutableMapOf<IPv4Address, TFTPServer>()
+    private val tftpSockets = ConcurrentHashMap<IPv4Address, TFTPSocket>()
+    private val tftpClients = ConcurrentHashMap<IPv4Address, TFTPClient>()
+    internal var tftpServers = ConcurrentHashMap<IPv4Address, TFTPServer>()
 
     var socket: DatagramSocket? = null
 
@@ -63,13 +64,11 @@ class TFTPEndpoint : Endpoint<IPv4Address>() {
             startTransmission()
             val inputStream = ByteArrayInputStream(data)
             val inetAddress = Inet4Address.getByName(peer.ip)
-            val tftpClient = TFTPClient()
-            tftpClients[peer] = tftpClient
-            val tftpSocket = TFTPSocket()
-            tftpSockets[peer] = tftpSocket
-            tftpClient.setDatagramSocketFactory(object : DatagramSocketFactory {
+            tftpClients[peer] = TFTPClient()
+            tftpSockets[peer] = TFTPSocket()
+            tftpClients[peer]!!.setDatagramSocketFactory(object : DatagramSocketFactory {
                 override fun createDatagramSocket(): DatagramSocket {
-                    return tftpSocket
+                    return tftpSockets[peer]!!
                 }
 
                 override fun createDatagramSocket(port: Int): DatagramSocket {
@@ -80,15 +79,17 @@ class TFTPEndpoint : Endpoint<IPv4Address>() {
                     throw IllegalStateException("Operation not supported")
                 }
             })
-            tftpClient.open()
+            tftpClients[peer]!!.open()
             try {
-                tftpClient.sendFile(
+                tftpClients[peer]!!.sendFile(
                     TFTP_FILENAME,
                     TFTP.BINARY_MODE,
                     inputStream,
                     inetAddress,
                     peer.port
                 )
+            } catch (e: Exception) {
+                e.printStackTrace()
             } finally {
                 endTransmission()
             }
