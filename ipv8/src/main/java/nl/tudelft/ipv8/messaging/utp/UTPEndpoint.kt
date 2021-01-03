@@ -141,8 +141,8 @@ class UTPEndpoint : Endpoint<IPv4Address>() {
         }
         if (packet != null) {
             val channel = UtpSocketChannel.open(socket)
-            channel.receivePacket(packet)
             registerChannel(channel, packet.port)
+            channel.receivePacket(packet)
 
             scope.launch(Dispatchers.IO) {
                 val sourceAddress = IPv4Address(packet.address.hostAddress, packet.port)

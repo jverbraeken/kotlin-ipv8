@@ -6,10 +6,12 @@ import mu.KotlinLogging
 import nl.tudelft.ipv8.IPv4Address
 import nl.tudelft.ipv8.messaging.Endpoint
 import nl.tudelft.ipv8.messaging.Packet
+import nl.tudelft.ipv8.messaging.tftp.TFTPEndpoint.Companion.PREFIX_TFTP
 import org.apache.commons.net.DatagramSocketFactory
 import org.apache.commons.net.tftp.*
 import java.io.ByteArrayInputStream
 import java.net.*
+import kotlin.concurrent.thread
 
 private val logger = KotlinLogging.logger {}
 
@@ -21,63 +23,49 @@ private val logger = KotlinLogging.logger {}
  * All packets are prefixed with a [PREFIX_TFTP] byte to allow it to be distinguished from regular
  * IPv8 UDP packets in UDPEndpoint which are prefixed with [Community.PREFIX_IPV8].
  */
-class TFTPEndpoint(
-    private val tftpClient: TFTPClient = TFTPClient()
-) : Endpoint<IPv4Address>() {
-    private val tftpSocket: TFTPSocket = TFTPSocket()
-    internal var tftpServer = TFTPServer { packet ->
-        scope.launch(Dispatchers.IO) {
-            val datagram = packet.newDatagram()
-            val wrappedData = byteArrayOf() + PREFIX_TFTP + datagram.data
-            datagram.setData(wrappedData, 0, datagram.length + 1)
-            val socket = socket
-            if (socket != null) {
-                logger.debug { "Send TFTP packet of type ${packet.type} to client " +
-                    "${packet.address.hostName}:${packet.port} (${datagram.length} B)" }
-                socket.send(datagram)
-            } else {
-                logger.error { "TFTP socket is missing" }
-            }
-        }
-    }
+class TFTPEndpoint : Endpoint<IPv4Address>() {
+    private val tftpSockets = mutableMapOf<IPv4Address, TFTPSocket>()
+    private val tftpClients = mutableMapOf<IPv4Address, TFTPClient>()
+    internal var tftpServers = mutableMapOf<IPv4Address, TFTPServer>()
 
     var socket: DatagramSocket? = null
 
     private val job = SupervisorJob()
     private val scope = CoroutineScope(Dispatchers.IO + job)
 
-    init {
-        tftpServer.onFileReceived = { data, address, port ->
-            val sourceAddress =
-                IPv4Address(address.hostAddress, port)
-            val packet = Packet(sourceAddress, data)
-            logger.debug(
-                "Received TFTP file (${data.size} B) from $sourceAddress"
-            )
-            notifyListeners(packet)
-        }
-    }
-
     override fun isOpen(): Boolean {
         return socket?.isBound == true
     }
 
     override fun send(peer: IPv4Address, data: ByteArray) {
-        scope.launch(Dispatchers.IO) {
+        thread {
             val inputStream = ByteArrayInputStream(data)
             val inetAddress = Inet4Address.getByName(peer.ip)
+            tftpClients[peer] = TFTPClient()
+            val tftpClient = tftpClients[peer]!!
+            tftpSockets[peer] = TFTPSocket()
+            val tftpSocket = tftpSockets[peer]!!
+            tftpClient.setDatagramSocketFactory(object : DatagramSocketFactory {
+                override fun createDatagramSocket(): DatagramSocket {
+                    return tftpSocket
+                }
 
-            try {
-                tftpClient.sendFile(
-                    TFTP_FILENAME,
-                    TFTP.BINARY_MODE,
-                    inputStream,
-                    inetAddress,
-                    peer.port
-                )
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
+                override fun createDatagramSocket(port: Int): DatagramSocket {
+                    throw IllegalStateException("Operation not supported")
+                }
+
+                override fun createDatagramSocket(port: Int, laddr: InetAddress?): DatagramSocket {
+                    throw IllegalStateException("Operation not supported")
+                }
+            })
+            tftpClient.open()
+            tftpClient.sendFile(
+                TFTP_FILENAME,
+                TFTP.BINARY_MODE,
+                inputStream,
+                inetAddress,
+                peer.port
+            )
         }
     }
 
@@ -96,15 +84,44 @@ class TFTPEndpoint(
                     "from ${packet.address.hostAddress}:${packet.port}"
             }
 
-            if (tftpPacket is TFTPWriteRequestPacket || tftpPacket is TFTPDataPacket) {
-                // This is a packet for the server
+            val address = IPv4Address(tftpPacket.address.hostAddress, tftpPacket.port)
+            if (tftpPacket is TFTPWriteRequestPacket) {
+                tftpServers[address] = {
+                    val instance = TFTPServer { packet ->
+                        scope.launch(Dispatchers.IO) {
+                            val datagram = packet.newDatagram()
+                            val wrappedData = byteArrayOf() + PREFIX_TFTP + datagram.data
+                            datagram.setData(wrappedData, 0, datagram.length + 1)
+                            val socket = socket
+                            if (socket != null) {
+                                logger.debug {
+                                    "Send TFTP packet of type ${packet.type} to client " +
+                                        "${packet.address.hostName}:${packet.port} (${datagram.length} B)"
+                                }
+                                socket.send(datagram)
+                            } else {
+                                logger.error { "TFTP socket is missing" }
+                            }
+                        }
+                    }
+                    instance.onFileReceived = { data, address, port ->
+                        val sourceAddress = IPv4Address(address.hostAddress, port)
+                        val received = Packet(sourceAddress, data)
+                        logger.debug("Received TFTP file (${data.size} B) from $sourceAddress")
+                        notifyListeners(received)
+                    }
+                    instance
+                }.invoke()
+                val tftpServer = tftpServers[address]!!
+                tftpServer.onPacket(tftpPacket)
+            } else if (tftpPacket is TFTPDataPacket) {
+                val tftpServer = tftpServers[address]!!
                 tftpServer.onPacket(tftpPacket)
             } else if (tftpPacket is TFTPAckPacket || tftpPacket is TFTPErrorPacket) {
-                // This is a packet for the client
-                tftpSocket.buffer.offer(packet)
+                tftpSockets[address]!!.buffer.offer(packet)
             } else {
                 // This is an unsupported packet (ReadRequest)
-                logger.debug { "Unsupported TFTP packet type" }
+                logger.debug { "Unsupported TFTP packet type: ReadRequest" }
             }
         } catch (e: Exception) {
             logger.error(e) { "Failed to handle TFTP packet" }
@@ -112,27 +129,11 @@ class TFTPEndpoint(
     }
 
     override fun open() {
-        tftpClient.setDatagramSocketFactory(object : DatagramSocketFactory {
-            override fun createDatagramSocket(): DatagramSocket {
-                return tftpSocket
-            }
-
-            override fun createDatagramSocket(port: Int): DatagramSocket {
-                throw IllegalStateException("Operation not supported")
-            }
-
-            override fun createDatagramSocket(
-                port: Int,
-                laddr: InetAddress?
-            ): DatagramSocket {
-                throw IllegalStateException("Operation not supported")
-            }
-        })
-        tftpClient.open()
+        // Skip
     }
 
     override fun close() {
-        tftpClient.close()
+        // Skip
     }
 
     /**
@@ -143,8 +144,10 @@ class TFTPEndpoint(
 
         override fun send(packet: DatagramPacket) {
             val tftpPacket = TFTPPacket.newTFTPPacket(packet)
-            logger.debug { "Send TFTP packet of type ${tftpPacket.type} to " +
-                "${packet.address.hostName}:${packet.port} (${packet.length} B)" }
+            logger.debug {
+                "Send TFTP packet of type ${tftpPacket.type} to " +
+                    "${packet.address.hostName}:${packet.port} (${packet.length} B)"
+            }
             val data = packet.data.copyOfRange(packet.offset, packet.offset + packet.length)
             val wrappedData = byteArrayOf(PREFIX_TFTP) + data
             packet.setData(wrappedData, 0, wrappedData.size)
@@ -166,8 +169,10 @@ class TFTPEndpoint(
                         packet.port = received.port
                         packet.setData(received.data, received.offset, received.length)
                         val tftpPacket = TFTPPacket.newTFTPPacket(packet)
-                        logger.debug { "Client received TFTP packet of type ${tftpPacket.type} " +
-                            "from ${received.address.hostName} (${packet.length} B)" }
+                        logger.debug {
+                            "Client received TFTP packet of type ${tftpPacket.type} " +
+                                "from ${received.address.hostName} (${packet.length} B)"
+                        }
                     }
                 } catch (e: TimeoutCancellationException) {
                     throw SocketTimeoutException()

@@ -11,14 +11,12 @@ import java.net.SocketException
 
 private val logger = KotlinLogging.logger {}
 
-class TFTPClient : TFTP() {
-    companion object {
-        /***
-         * The size to use for TFTP packet buffers. It's 4 + TFTPPacket.SEGMENT_SIZE, i.e. 516.
-         */
-        private const val PACKET_SIZE = TFTPPacket.SEGMENT_SIZE + 4
-    }
+/***
+ * The size to use for TFTP packet buffers. It's 4 + TFTPPacket.SEGMENT_SIZE, i.e. 516.
+ */
+private const val PACKET_SIZE = TFTPPacket.SEGMENT_SIZE + 4
 
+class TFTPClient : TFTP() {
     private var _totalBytesSent = 0L
     private val _sendBuffer: ByteArray = ByteArray(PACKET_SIZE)
 
@@ -28,7 +26,7 @@ class TFTPClient : TFTP() {
         input: InputStream,
         host: InetAddress,
         port: Int
-    ) = synchronized(this) {
+    ) {
         var block = 0
         var lastAckWait = false
 

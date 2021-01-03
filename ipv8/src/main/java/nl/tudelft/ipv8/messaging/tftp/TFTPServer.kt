@@ -26,9 +26,6 @@ class TFTPServer(
 
     private val buffer = Channel<TFTPPacket>(Channel.UNLIMITED)
 
-    // TODO: create a separate channel for each file to allow parallel writes
-    private val mutex = Mutex()
-
     var onFileReceived: ((ByteArray, InetAddress, Int) -> Unit)? = null
 
     private val job = SupervisorJob()
@@ -57,7 +54,7 @@ class TFTPServer(
      * Inspired by https://github.com/apache/commons-net/blob/eb8ac04598710c952a41c3112877c1ff8e3b3cfa/src/test/java/org/apache/commons/net/tftp/TFTPServer.java
      */
     @Throws(IOException::class, TFTPPacketException::class)
-    private suspend fun handleWrite(twrp: TFTPWriteRequestPacket) = mutex.withLock {
+    private suspend fun handleWrite(twrp: TFTPWriteRequestPacket) {
         logger.debug { "handleWrite" }
 
         val bos = ByteArrayOutputStream()
@@ -69,10 +66,7 @@ class TFTPServer(
             // get the response - ensure it is from the right place.
             var dataPacket: TFTPPacket? = null
             var timeoutCount = 0
-            while (!shutdownTransfer
-                && (dataPacket == null || dataPacket.address != twrp.address || dataPacket
-                    .port != twrp.port)
-            ) {
+            while (!shutdownTransfer && (dataPacket == null || dataPacket.address != twrp.address || dataPacket.port != twrp.port)) {
                 // listen for an answer.
                 if (dataPacket != null) {
                     // The data that we got didn't come from the
