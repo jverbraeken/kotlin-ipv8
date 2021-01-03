@@ -14,6 +14,7 @@ import nl.tudelft.ipv8.messaging.utp.UTPEndpoint
 import nl.tudelft.ipv8.peerdiscovery.Network
 import java.io.IOException
 import java.net.*
+import kotlin.concurrent.thread
 
 private val logger = KotlinLogging.logger {}
 
@@ -33,7 +34,7 @@ open class UdpEndpoint(
     private val job = SupervisorJob()
     private val scope = CoroutineScope(Dispatchers.IO + job)
 
-    private var bindJob: Job? = null
+    private var bindJob: Thread? = null
     private var lanEstimationJob: Job? = null
 
     init {
@@ -177,7 +178,7 @@ open class UdpEndpoint(
 
         stopLanEstimation()
 
-        bindJob?.cancel()
+        bindJob?.interrupt()
         bindJob = null
 
         tftpEndpoint.close()
@@ -223,15 +224,13 @@ open class UdpEndpoint(
         return socket?.localPort ?: port
     }
 
-    private fun bindSocket(socket: DatagramSocket) = scope.launch(Dispatchers.IO) {
+    private fun bindSocket(socket: DatagramSocket) = thread {
         while (true) {
             try {
                 val receiveData = ByteArray(UDP_PAYLOAD_LIMIT)
-                while (isActive) {
-                    val receivePacket = DatagramPacket(receiveData, receiveData.size)
-                    socket.receive(receivePacket)
-                    handleReceivedPacket(receivePacket)
-                }
+                val receivePacket = DatagramPacket(receiveData, receiveData.size)
+                socket.receive(receivePacket)
+                handleReceivedPacket(receivePacket)
             } catch (e: IOException) {
                 e.printStackTrace()
             }
