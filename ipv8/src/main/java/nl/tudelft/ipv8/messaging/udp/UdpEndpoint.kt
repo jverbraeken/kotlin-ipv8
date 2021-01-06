@@ -88,7 +88,7 @@ open class UdpEndpoint(
     /**
      * @param reliable when the package should be retransmitted until the other peer acknowledges that the packet was received
      */
-    fun send(peer: Peer, data: ByteArray, reliable: Boolean) = thread {
+    fun send(peer: Peer, data: ByteArray, reliable: Boolean) {
         if (!isOpen()) throw IllegalStateException("UDP socket is closed")
 
         if (wan == null) {

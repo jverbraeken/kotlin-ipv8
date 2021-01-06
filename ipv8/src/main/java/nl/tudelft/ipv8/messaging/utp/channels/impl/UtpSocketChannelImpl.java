@@ -204,11 +204,13 @@ public class UtpSocketChannelImpl extends UtpSocketChannel {
     }
 
     private boolean acceptSyn(DatagramPacket udpPacket) {
-        UTPSocketChannelImplLoggerKt.getLogger().debug("acceptSyn");
         UtpPacket pkt = extractUtpPacket(udpPacket);
-        return getState() == CLOSED
+        boolean accept = getState() == CLOSED
             || (getState() == CONNECTED && isSameAddressAndId(
             pkt.getConnectionId(), udpPacket.getSocketAddress()));
+        UTPSocketChannelImplLoggerKt.getLogger().debug("acceptSyn: " + getState() + ", " + isSameAddressAndId(
+            pkt.getConnectionId(), udpPacket.getSocketAddress()));
+        return accept;
     }
 
     @Override
@@ -356,13 +358,11 @@ public class UtpSocketChannelImpl extends UtpSocketChannel {
     /* general method to send a packet, will be wrapped by a UDP Packet */
     @Override
     public void sendPacket(UtpPacket packet) throws IOException {
-        if (packet != null) {
-            byte[] utpPacketBytes = packet.toByteArray();
-            int length = packet.getPacketLength();
-            DatagramPacket pkt = new DatagramPacket(utpPacketBytes, length,
-                getRemoteAdress());
-            sendPacket(pkt);
-        }
+        byte[] utpPacketBytes = packet.toByteArray();
+        int length = packet.getPacketLength();
+        DatagramPacket pkt = new DatagramPacket(utpPacketBytes, length,
+            getRemoteAdress());
+        sendPacket(pkt);
     }
 
     public void setDgSocket(DatagramSocket dgSocket) {
