@@ -131,6 +131,7 @@ open class UdpEndpoint(
         }
         val datagramPacket = DatagramPacket(data, data.size, toAddress.toSocketAddress())
         try {
+            logger.debug { "Sending with UDP to ${socket == null}, address: $address, ${socket?.isBound}"}
             socket?.send(datagramPacket)
         } catch (e: Exception) {
             logger.error("Sending DatagramPacket failed", e)
@@ -229,6 +230,7 @@ open class UdpEndpoint(
             try {
                 val receiveData = ByteArray(UDP_PAYLOAD_LIMIT)
                 val receivePacket = DatagramPacket(receiveData, receiveData.size)
+                logger.debug("Socket bound")
                 socket.receive(receivePacket)
                 handleReceivedPacket(receivePacket)
             } catch (e: IOException) {
@@ -238,7 +240,7 @@ open class UdpEndpoint(
     }
 
     internal fun handleReceivedPacket(receivePacket: DatagramPacket) {
-//        logger.debug("Received packet from " + "${receivePacket.address.hostAddress}:${receivePacket.port}")
+        logger.debug("Received packet from " + "${receivePacket.address.hostAddress}:${receivePacket.port}")
 
         // Check whether prefix is IPv8, TFTP, or UTP
         when (receivePacket.data[0]) {
