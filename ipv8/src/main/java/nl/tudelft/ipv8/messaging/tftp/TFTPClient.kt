@@ -38,11 +38,11 @@ class TFTPClient : TFTP() {
         do { // until eof
             // first time: block is 0, lastBlock is 0, send a request packet.
             // subsequent: block is integer starting at 1, send data packet.
-            send(sent)
             var wantReply = true
             var timeouts = 0
             do {
                 try {
+                    send(sent)
                     logger.debug { "Waiting for receive..." }
 
                     val received = receive()
