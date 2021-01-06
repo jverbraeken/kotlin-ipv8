@@ -160,14 +160,18 @@ class TFTPServer {
     }
 
     fun send(packet: TFTPPacket, connectionId: Byte, socket: DatagramSocket) {
-
-        val datagram = packet.newDatagram()
-        val wrappedData = byteArrayOf() + TFTPEndpoint.PREFIX_TFTP + datagram.data
-        datagram.setData(wrappedData, 0, datagram.length + 1)
-        logger.debug {
-            "Send TFTP packet of type ${packet.type} to client " +
-                "${packet.address.hostName}:${packet.port}:$connectionId (${datagram.length} B)"
+        if (packet is TFTPAckPacket) {
+            logger.debug { "Sending acknowledgement: ${packet.blockNumber}, ${packet.port}:$connectionId" }
+        } else {
+            logger.debug { "Sending error packet" }
         }
+        val datagram = packet.newDatagram()
+        val wrappedData = byteArrayOf(TFTPEndpoint.PREFIX_TFTP, connectionId) + datagram.data
+        datagram.setData(wrappedData, 0, wrappedData.size)
+//        logger.debug {
+//            "Send TFTP packet of type ${packet.type} to client " +
+//                "${packet.address.hostName}:${packet.port}:$connectionId (${datagram.length} B)"
+//        }
         socket.send(datagram)
     }
 }
