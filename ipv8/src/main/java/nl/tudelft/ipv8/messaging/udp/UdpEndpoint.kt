@@ -230,7 +230,6 @@ open class UdpEndpoint(
             try {
                 val receiveData = ByteArray(UDP_PAYLOAD_LIMIT)
                 val receivePacket = DatagramPacket(receiveData, receiveData.size)
-                logger.debug("Socket bound")
                 socket.receive(receivePacket)
                 handleReceivedPacket(receivePacket)
             } catch (e: IOException) {

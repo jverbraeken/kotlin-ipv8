@@ -41,7 +41,7 @@ class TFTPClient {
 
         var sent: TFTPPacket = TFTPWriteRequestPacket(host, port, filename, mode)
         val data = TFTPDataPacket(host, port, 0, _sendBuffer, 4, 0)
-        TFTPCommunity.tftpMapClient[port] = ConcurrentHashMap()
+        TFTPCommunity.tftpMapClient.putIfAbsent(port, ConcurrentHashMap())
 
         do { // until eof
             // first time: block is 0, lastBlock is 0, send a request packet.
@@ -51,7 +51,7 @@ class TFTPClient {
             do {
                 try {
                     send(sent.newDatagram(), connectionId, socket)
-                    logger.debug { "Waiting for receive... ($port)" }
+                    logger.debug { "Waiting for receive... ($port:$connectionId)" }
 
                     val received = withTimeout(2000) {
                         /*while (!File("/data/user/0/nl.tudelft.trustchain/files/$port").exists()) {
@@ -64,7 +64,7 @@ class TFTPClient {
                             }
                         }*/
                         while (!TFTPCommunity.tftpMapClient[port]!!.containsKey(connectionId)) {
-                            logger.debug { "... ($port)" }
+                            logger.debug { "... ($port:$connectionId)" }
                             delay(100)
                         }
                         TFTPCommunity.tftpMapClient[port]!![connectionId]!!
@@ -73,7 +73,7 @@ class TFTPClient {
 //                    File("/data/user/0/nl.tudelft.trustchain/files/$port").delete()
                     queue = null
 
-                    logger.debug { "!!! Received TFTP packet of type ${received.type} ($port)" }
+                    logger.debug { "!!! Received TFTP packet of type ${received.type} ($port:$connectionId)" }
 
                     val recdAddress = received.address
                     val recdPort = received.port
@@ -90,19 +90,19 @@ class TFTPClient {
 //                            }
                             TFTPPacket.ACKNOWLEDGEMENT -> {
                                 val lastBlock = (received).blockNumber
-                                logger.warn { "ACK block: $lastBlock, expected: $block ($port)" }
-                                logger.debug { "lastBlock1: $lastBlock, block: $block, port: $port" }
+                                logger.warn { "ACK block: $lastBlock, expected: $block ($port):$connectionId" }
+                                logger.debug { "lastBlock1: $lastBlock, block: $block, port: $port:$connectionId" }
                                 if (lastBlock == block) {
                                     ++block
-                                    logger.debug { "lastBlock2: $lastBlock, block: $block, port: $port" }
+                                    logger.debug { "lastBlock2: $lastBlock, block: $block, port: $port:$connectionId" }
                                     if (block > 65535) {
                                         // wrap the block number
-                                        logger.debug { "lastBlock3: $lastBlock, block: $block, port: $port" }
+                                        logger.debug { "lastBlock3: $lastBlock, block: $block, port: $port:$connectionId" }
                                         block = 0
                                     }
                                     wantReply = false
                                 } else {
-                                    logger.debug { "discardPackets" }
+                                    logger.debug { "discardPackets:$connectionId" }
                                 }
                             }
                             else -> throw IOException("Received unexpected packet type.")
@@ -119,15 +119,15 @@ class TFTPClient {
                     }
                 } catch (e: SocketException) {
                     if (++timeouts >= DEFAULT_MAX_TIMEOUTS) {
-                        throw IOException("Connection timed out ($port)")
+                        throw IOException("Connection timed out ($port:$connectionId)")
                     }
                 } catch (e: InterruptedIOException) {
                     if (++timeouts >= DEFAULT_MAX_TIMEOUTS) {
-                        throw IOException("Connection timed out ($port)")
+                        throw IOException("Connection timed out ($port:$connectionId)")
                     }
                 } catch (e: TimeoutCancellationException) {
                     if (++timeouts >= DEFAULT_MAX_TIMEOUTS) {
-                        throw IOException("Connection timed out ($port)")
+                        throw IOException("Connection timed out ($port:$connectionId)")
                     }
                 } catch (e: TFTPPacketException) {
                     throw IOException("Bad packet: " + e.message)
@@ -151,20 +151,19 @@ class TFTPClient {
                 lastAckWait = true
             }
             data.blockNumber = block
-            logger.debug { "Sending blockNumber: ${data.blockNumber} of $block ($port)"}
+            logger.debug { "Sending blockNumber: ${data.blockNumber} of $block ($port:$connectionId)"}
             data.setData(_sendBuffer, 4, totalThisPacket)
             sent = data
             _totalBytesSent += totalThisPacket.toLong()
         } while (true) // loops until after lastAckWait is set
-        logger.debug { "sendFile finished ($port)" }
-        TFTPCommunity.tftpMapClient.remove(port)
+        logger.debug { "sendFile finished ($port:$connectionId)" }
     }
 
     fun send(packet: DatagramPacket, connectionId: Byte, socket: DatagramSocket) {
         val tftpPacket = TFTPPacket.newTFTPPacket(packet)
         logger.debug {
             "Send TFTP packet of type ${tftpPacket.type} to " +
-                "${packet.address.hostName}:${packet.port} (${packet.length} B)"
+                "${packet.address.hostName}:${packet.port} (${packet.length} B) (:$connectionId)"
         }
         val data = packet.data.copyOfRange(packet.offset, packet.offset + packet.length)
         val wrappedData = byteArrayOf(TFTPEndpoint.PREFIX_TFTP, connectionId) + data

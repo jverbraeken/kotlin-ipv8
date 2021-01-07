@@ -55,7 +55,7 @@ class TFTPServer {
      */
     @Throws(IOException::class, TFTPPacketException::class)
     private suspend fun handleWrite(twrp: TFTPWriteRequestPacket,connectionId: Byte, socket: DatagramSocket) {
-        logger.debug { "handleWrite (${twrp.address.hostName}:${twrp.port})" }
+        logger.debug { "handleWrite (${twrp.address.hostName}:${twrp.port}:$connectionId)" }
 
         val bos = ByteArrayOutputStream()
 
@@ -156,7 +156,7 @@ class TFTPServer {
                 }
             }
         }
-        logger.debug { "handleWrite finished (${twrp.address.hostName}:${twrp.port})" }
+        logger.debug { "handleWrite finished (${twrp.address.hostName}:${twrp.port}:$connectionId)" }
     }
 
     fun send(packet: TFTPPacket, connectionId: Byte, socket: DatagramSocket) {
