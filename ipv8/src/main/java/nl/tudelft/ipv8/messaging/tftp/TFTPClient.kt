@@ -7,8 +7,6 @@ import mu.KotlinLogging
 import org.apache.commons.net.tftp.*
 import org.apache.commons.net.tftp.TFTPClient.DEFAULT_MAX_TIMEOUTS
 import java.io.*
-import java.net.DatagramPacket
-import java.net.DatagramSocket
 import java.net.InetAddress
 import java.net.SocketException
 import java.util.concurrent.ConcurrentHashMap
@@ -27,7 +25,7 @@ private const val VERBOSE_LOGGING = false
  */
 private fun vl(log: () -> String) {
     if (VERBOSE_LOGGING) {
-        logger.debug(log)
+        logger.debug { log() }
     }
 }
 
@@ -46,8 +44,8 @@ class TFTPClient {
         host: InetAddress,
         port: Int,
         connectionId: Byte,
-        socket: DatagramSocket,
-        channel: ConcurrentHashMap<Byte, Channel<TFTPPacket>>
+        channel: ConcurrentHashMap<Byte, Channel<TFTPPacket>>,
+        send: (TFTPPacket, Byte) -> Unit,
     ) {
         var block = 0
         var lastAckWait = false
@@ -64,7 +62,7 @@ class TFTPClient {
             var timeouts = 0
             do {
                 try {
-                    send(sent.newDatagram(), connectionId, socket)
+                    send(sent, connectionId)
                     vl { "Waiting for receive... ($port:$connectionId)" }
 
                     val received = withTimeout(SO_TIMEOUT) { channel[connectionId]!!.receive() }
@@ -107,7 +105,7 @@ class TFTPClient {
                             TFTPErrorPacket.UNKNOWN_TID,
                             "Unexpected host or port"
                         )
-                        send(error.newDatagram(), connectionId, socket)
+                        send(error, connectionId)
                     }
                 } catch (e: SocketException) {
                     if (++timeouts >= DEFAULT_MAX_TIMEOUTS) {
@@ -129,6 +127,9 @@ class TFTPClient {
             if (lastAckWait) {
                 break // we were waiting for this; now all done
             }
+            if (block % 500 == 0) {
+                logger.debug { "Sent block $block to ${port}:$connectionId" }
+            }
             var dataLength = TFTPPacket.SEGMENT_SIZE
             var offset = 4
             var totalThisPacket = 0
@@ -143,24 +144,12 @@ class TFTPClient {
                 lastAckWait = true
             }
             data.blockNumber = block
-            vl { "Sending blockNumber: ${data.blockNumber} of $block ($port:$connectionId)"}
+            vl { "Sending blockNumber: ${data.blockNumber} of $block ($port:$connectionId)" }
             data.setData(_sendBuffer, 4, totalThisPacket)
             sent = data
             _totalBytesSent += totalThisPacket.toLong()
         } while (true) // loops until after lastAckWait is set
         logger.debug { "sendFile finished ($port:$connectionId)" }
         channel.remove(connectionId)
-    }
-
-    fun send(packet: DatagramPacket, connectionId: Byte, socket: DatagramSocket) {
-        val tftpPacket = TFTPPacket.newTFTPPacket(packet)
-        vl {
-            "Send TFTP packet of type ${tftpPacket.type} to " +
-                "${packet.address.hostName}:${packet.port} (${packet.length} B) (:$connectionId)"
-        }
-        val data = packet.data.copyOfRange(packet.offset, packet.offset + packet.length)
-        val wrappedData = byteArrayOf(TFTPEndpoint.PREFIX_TFTP, connectionId) + data
-        packet.setData(wrappedData, 0, wrappedData.size)
-        socket.send(packet)
     }
 }

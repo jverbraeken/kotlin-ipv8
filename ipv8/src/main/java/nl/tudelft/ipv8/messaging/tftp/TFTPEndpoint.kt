@@ -9,6 +9,7 @@ import nl.tudelft.ipv8.messaging.Packet
 import nl.tudelft.ipv8.messaging.tftp.TFTPEndpoint.Companion.PREFIX_TFTP
 import org.apache.commons.net.tftp.*
 import java.io.ByteArrayInputStream
+import java.lang.NullPointerException
 import java.net.*
 import java.util.concurrent.ConcurrentHashMap
 
@@ -16,6 +17,17 @@ private val logger = KotlinLogging.logger {}
 
 @Volatile
 private var numTransmissions = 0
+
+private const val VERBOSE_LOGGING = false
+
+/**
+ * Verbose logging
+ */
+private fun vl(log: () -> String) {
+    if (VERBOSE_LOGGING) {
+        logger.debug { log() }
+    }
+}
 
 private fun startTransmission() {
     synchronized(numTransmissions) {
@@ -56,6 +68,14 @@ class TFTPEndpoint : Endpoint<IPv4Address>() {
         return numTransmissions
     }
 
+    private fun sendPacket(packet: TFTPPacket, connectionId: Byte) {
+            val datagram = packet.newDatagram()
+            vl { "Send TFTP packet ${packet.type} to ${packet.port} (:$connectionId)" }
+            val wrappedData = byteArrayOf(PREFIX_TFTP, connectionId) + datagram.data
+            datagram.setData(wrappedData, 0, wrappedData.size)
+            socket!!.send(datagram)
+    }
+
     override fun send(peer: IPv4Address, data: ByteArray) {
         startTransmission()
         scope.launch(Dispatchers.IO) {
@@ -78,8 +98,8 @@ class TFTPEndpoint : Endpoint<IPv4Address>() {
                     inetAddress,
                     peer.port,
                     availableConnectionId,
-                    socket!!,
-                    TFTPCommunity.tftpIncomingClientPackets[peer]!!
+                    TFTPCommunity.tftpIncomingClientPackets[peer]!!,
+                    this@TFTPEndpoint::sendPacket
                 )
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -98,17 +118,14 @@ class TFTPEndpoint : Endpoint<IPv4Address>() {
             packet.setData(unwrappedData, 0, unwrappedData.size)
             val tftpPacket = TFTPPacket.newTFTPPacket(packet)
 
-//            logger.debug {
-//                "Received TFTP packet of type ${tftpPacket.type} (${packet.length} B) " +
-//                    "from ${packet.port}:$connectionId"
-//            }
+            vl { "Received TFTP packet of type ${tftpPacket.type} from ${packet.port}:$connectionId" }
 
             val address = IPv4Address(tftpPacket.address.hostAddress, tftpPacket.port)
             tftpServers.putIfAbsent(address, ConcurrentHashMap())
             if (tftpPacket is TFTPWriteRequestPacket) {
                 tftpServers[address]!![connectionId] = {
                     val instance = TFTPServer()
-                    logger.debug { "TFTPWriteRequestPacket => port: ${address.port}, connectionId: $connectionId" }
+                    vl { "TFTPWriteRequestPacket => port: ${address.port}, connectionId: $connectionId" }
                     instance.onFileReceived = { data, address2, port ->
                         tftpServers[address]!!.remove(connectionId)
                         val sourceAddress = IPv4Address(address2.hostAddress, port)
@@ -120,17 +137,22 @@ class TFTPEndpoint : Endpoint<IPv4Address>() {
                 }.invoke()
                 val serversPerAddress = tftpServers[address]!!
                 val server = serversPerAddress[connectionId]!!
-                server.onPacket(tftpPacket, connectionId, socket!!)
+                server.onWriteRequestPacket(tftpPacket, connectionId, this::sendPacket)
             } else if (tftpPacket is TFTPDataPacket) {
-//                logger.debug { "Packet is DataPacket => going to $address:$connectionId" }
+                vl { "Packet is DataPacket => going to $address:$connectionId" }
                 val serversPerAddress = tftpServers[address]!!
                 val server = serversPerAddress[connectionId]!!
-                server.onPacket(tftpPacket, connectionId, socket!!)
+                server.onDataPacket(tftpPacket)
             } else if (tftpPacket is TFTPAckPacket) {
-//                logger.debug { "Packet is AckPacket => going to $address:$connectionId" }
+                vl { "Packet is AckPacket => going to $address:$connectionId" }
                 val channelsPerAddress = TFTPCommunity.tftpIncomingClientPackets[address]!!
-                val channel = channelsPerAddress[connectionId]!!
-                channel.offer(tftpPacket)
+                try {
+                    val channel = channelsPerAddress[connectionId]!!
+                    channel.offer(tftpPacket)
+                } catch (e: NullPointerException) {
+                    // Probably an acknowledgement arriving after the file has already been sent
+                    vl { "Ignoring unrecognized acknowledgement" }
+                }
             } else if (tftpPacket is TFTPErrorPacket) {
                 logger.debug { "Packet is TFTPErrorPacket => port: ${address.port}, connectionId: $connectionId, error:${tftpPacket.message}" }
                 TFTPCommunity.tftpIncomingClientPackets[address]!![connectionId]!!.offer(tftpPacket)
