@@ -1,6 +1,7 @@
 package nl.tudelft.ipv8.messaging.tftp
 
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeout
 import mu.KotlinLogging
@@ -23,7 +24,6 @@ private const val PACKET_SIZE = TFTPPacket.SEGMENT_SIZE + 4
 class TFTPClient {
     private var _totalBytesSent = 0L
     private val _sendBuffer: ByteArray = ByteArray(PACKET_SIZE)
-    @Volatile private var queue: TFTPPacket? = null //Channel<TFTPPacket>(1000)
 
     suspend fun sendFile(
         filename: String,
@@ -42,6 +42,7 @@ class TFTPClient {
         var sent: TFTPPacket = TFTPWriteRequestPacket(host, port, filename, mode)
         val data = TFTPDataPacket(host, port, 0, _sendBuffer, 4, 0)
         TFTPCommunity.tftpMapClient.putIfAbsent(port, ConcurrentHashMap())
+        TFTPCommunity.tftpMapClient[port]!!.putIfAbsent(connectionId, Channel(Channel.UNLIMITED))
 
         do { // until eof
             // first time: block is 0, lastBlock is 0, send a request packet.
@@ -53,25 +54,7 @@ class TFTPClient {
                     send(sent.newDatagram(), connectionId, socket)
                     logger.debug { "Waiting for receive... ($port:$connectionId)" }
 
-                    val received = withTimeout(2000) {
-                        /*while (!File("/data/user/0/nl.tudelft.trustchain/files/$port").exists()) {
-                            logger.debug { "... ($port)" }
-                            delay(100)
-                        }
-                        ByteArrayInputStream(File("/data/user/0/nl.tudelft.trustchain/files/$port").readBytes()).use { bis ->
-                            ObjectInputStream(bis).use {
-                                TFTPAckPacket(it.readObject() as InetAddress, it.readInt(), it.readInt())
-                            }
-                        }*/
-                        while (!TFTPCommunity.tftpMapClient[port]!!.containsKey(connectionId)) {
-                            logger.debug { "... ($port:$connectionId)" }
-                            delay(100)
-                        }
-                        TFTPCommunity.tftpMapClient[port]!![connectionId]!!
-                    }
-                    TFTPCommunity.tftpMapClient[port]!!.remove(connectionId)
-//                    File("/data/user/0/nl.tudelft.trustchain/files/$port").delete()
-                    queue = null
+                    val received = withTimeout(2000) { TFTPCommunity.tftpMapClient[port]!![connectionId]!!.receive() }
 
                     logger.debug { "!!! Received TFTP packet of type ${received.type} ($port:$connectionId)" }
 
@@ -157,6 +140,7 @@ class TFTPClient {
             _totalBytesSent += totalThisPacket.toLong()
         } while (true) // loops until after lastAckWait is set
         logger.debug { "sendFile finished ($port:$connectionId)" }
+        TFTPCommunity.tftpMapClient[port]!!.remove(connectionId)
     }
 
     fun send(packet: DatagramPacket, connectionId: Byte, socket: DatagramSocket) {
@@ -172,20 +156,7 @@ class TFTPClient {
     }
 
     fun receivePacket(packet: TFTPAckPacket, connectionId: Byte) {
-//        val file = File("/data/user/0/nl.tudelft.trustchain/files/${packet.port}")
-//        file.createNewFile()
-//        file.writeBytes(ByteArrayOutputStream().use { bos ->
-//            ObjectOutputStream(bos).use { oos ->
-//                oos.writeObject(packet.address)
-//                oos.writeInt(packet.port)
-//                oos.writeInt(packet.blockNumber)
-//                oos.flush()
-//            }
-//            bos
-//        }.toByteArray())
-        TFTPCommunity.tftpMapClient[packet.port]!![connectionId] = packet
-        logger.debug { "Stored on ${packet.port} the packet"}
-//        this.queue = packet
-//        logger.debug { "success: $success" }
+        TFTPCommunity.tftpMapClient[packet.port]!![connectionId]!!.offer(packet)
+        logger.debug { "Stored on ${packet.port}:$connectionId the packet"}
     }
 }
