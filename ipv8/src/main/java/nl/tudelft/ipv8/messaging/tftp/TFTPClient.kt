@@ -20,7 +20,7 @@ private val logger = KotlinLogging.logger {}
  */
 private const val PACKET_SIZE = TFTPPacket.SEGMENT_SIZE + 4
 
-private const val VERBOSE_LOGGING = true
+private const val VERBOSE_LOGGING = false
 
 /**
  * Verbose logging
@@ -94,7 +94,7 @@ class TFTPClient {
                                     }
                                     wantReply = false
                                 } else {
-                                    logger.debug { "ignoring block ($port:$connectionId)" }
+                                    vl { "ignoring block $block ($port:$connectionId)" }
                                 }
                             }
                             else -> throw IOException("Received unexpected packet type.")

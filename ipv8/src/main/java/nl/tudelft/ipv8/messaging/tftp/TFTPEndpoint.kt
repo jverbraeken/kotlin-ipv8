@@ -118,14 +118,21 @@ class TFTPEndpoint : Endpoint<IPv4Address>() {
                     }
                     instance
                 }.invoke()
-                val tftpServer = tftpServers[address]!![connectionId]!!
-                tftpServer.onPacket(tftpPacket, connectionId, socket!!)
+                val serversPerAddress = tftpServers[address]!!
+                val server = serversPerAddress[connectionId]!!
+                server.onPacket(tftpPacket, connectionId, socket!!)
             } else if (tftpPacket is TFTPDataPacket) {
 //                logger.debug { "Packet is DataPacket => going to $address:$connectionId" }
-                val tftpServer = tftpServers[address]!![connectionId]!!
-                tftpServer.onPacket(tftpPacket, connectionId, socket!!)
-            } else if (tftpPacket is TFTPAckPacket || tftpPacket is TFTPErrorPacket) {
+                val serversPerAddress = tftpServers[address]!!
+                val server = serversPerAddress[connectionId]!!
+                server.onPacket(tftpPacket, connectionId, socket!!)
+            } else if (tftpPacket is TFTPAckPacket) {
 //                logger.debug { "Packet is AckPacket => going to $address:$connectionId" }
+                val channelsPerAddress = TFTPCommunity.tftpIncomingClientPackets[address]!!
+                val channel = channelsPerAddress[connectionId]!!
+                channel.offer(tftpPacket)
+            } else if (tftpPacket is TFTPErrorPacket) {
+                logger.debug { "Packet is TFTPErrorPacket => port: ${address.port}, connectionId: $connectionId, error:${tftpPacket.message}" }
                 TFTPCommunity.tftpIncomingClientPackets[address]!![connectionId]!!.offer(tftpPacket)
             } else {
                 logger.error { "Unsupported TFTP packet type: ReadRequest" }
