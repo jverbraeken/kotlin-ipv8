@@ -55,7 +55,7 @@ class TFTPServer {
      */
     @Throws(IOException::class, TFTPPacketException::class)
     private suspend fun handleWrite(twrp: TFTPWriteRequestPacket,connectionId: Byte, socket: DatagramSocket) {
-        logger.debug { "handleWrite (${twrp.address.hostName}:${twrp.port}:$connectionId)" }
+//        logger.debug { "handleWrite (${twrp.address.hostName}:${twrp.port}:$connectionId)" }
 
         val bos = ByteArrayOutputStream()
 
@@ -160,11 +160,11 @@ class TFTPServer {
     }
 
     fun send(packet: TFTPPacket, connectionId: Byte, socket: DatagramSocket) {
-        if (packet is TFTPAckPacket) {
-            logger.debug { "Sending acknowledgement: ${packet.blockNumber}, ${packet.port}:$connectionId" }
-        } else {
-            logger.debug { "Sending error packet" }
-        }
+//        if (packet is TFTPAckPacket) {
+//            logger.debug { "Sending acknowledgement: ${packet.blockNumber}, ${packet.port}:$connectionId" }
+//        } else {
+//            logger.debug { "Sending error packet" }
+//        }
         val datagram = packet.newDatagram()
         val wrappedData = byteArrayOf(TFTPEndpoint.PREFIX_TFTP, connectionId) + datagram.data
         datagram.setData(wrappedData, 0, wrappedData.size)

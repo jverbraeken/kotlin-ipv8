@@ -2,7 +2,6 @@ package nl.tudelft.ipv8.messaging.tftp
 
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeout
 import mu.KotlinLogging
 import org.apache.commons.net.tftp.*
@@ -21,9 +20,24 @@ private val logger = KotlinLogging.logger {}
  */
 private const val PACKET_SIZE = TFTPPacket.SEGMENT_SIZE + 4
 
+private const val VERBOSE_LOGGING = true
+
+/**
+ * Verbose logging
+ */
+private fun vl(log: () -> String) {
+    if (VERBOSE_LOGGING) {
+        logger.debug(log)
+    }
+}
+
 class TFTPClient {
     private var _totalBytesSent = 0L
     private val _sendBuffer: ByteArray = ByteArray(PACKET_SIZE)
+
+    companion object {
+        private const val SO_TIMEOUT = 1000L
+    }
 
     suspend fun sendFile(
         filename: String,
@@ -32,7 +46,8 @@ class TFTPClient {
         host: InetAddress,
         port: Int,
         connectionId: Byte,
-        socket: DatagramSocket
+        socket: DatagramSocket,
+        channel: ConcurrentHashMap<Byte, Channel<TFTPPacket>>
     ) {
         var block = 0
         var lastAckWait = false
@@ -41,8 +56,6 @@ class TFTPClient {
 
         var sent: TFTPPacket = TFTPWriteRequestPacket(host, port, filename, mode)
         val data = TFTPDataPacket(host, port, 0, _sendBuffer, 4, 0)
-        TFTPCommunity.tftpMapClient.putIfAbsent(port, ConcurrentHashMap())
-        TFTPCommunity.tftpMapClient[port]!!.putIfAbsent(connectionId, Channel(Channel.UNLIMITED))
 
         do { // until eof
             // first time: block is 0, lastBlock is 0, send a request packet.
@@ -52,11 +65,11 @@ class TFTPClient {
             do {
                 try {
                     send(sent.newDatagram(), connectionId, socket)
-                    logger.debug { "Waiting for receive... ($port:$connectionId)" }
+                    vl { "Waiting for receive... ($port:$connectionId)" }
 
-                    val received = withTimeout(2000) { TFTPCommunity.tftpMapClient[port]!![connectionId]!!.receive() }
+                    val received = withTimeout(SO_TIMEOUT) { channel[connectionId]!!.receive() }
 
-                    logger.debug { "!!! Received TFTP packet of type ${received.type} ($port:$connectionId)" }
+                    vl { "!!! Received TFTP packet of type ${received.type} ($port:$connectionId)" }
 
                     val recdAddress = received.address
                     val recdPort = received.port
@@ -65,27 +78,23 @@ class TFTPClient {
                     // should be sent to originator if unexpected TID or host.
                     if (host == recdAddress && port == recdPort) {
                         when (received.type) {
-//                            TFTPPacket.ERROR -> {
-//                                val error = received as TFTPErrorPacket
-//                                throw IOException(
-//                                    "Error code " + error.error + " received: " + error.message
-//                                )
-//                            }
+                            TFTPPacket.ERROR -> {
+                                val error = received as TFTPErrorPacket
+                                throw IOException("Error code ${error.error} received: ${error.message}")
+                            }
                             TFTPPacket.ACKNOWLEDGEMENT -> {
-                                val lastBlock = (received).blockNumber
-                                logger.warn { "ACK block: $lastBlock, expected: $block ($port):$connectionId" }
-                                logger.debug { "lastBlock1: $lastBlock, block: $block, port: $port:$connectionId" }
+                                val lastBlock = (received as TFTPAckPacket).blockNumber
+                                vl { "ACK block: $lastBlock, expected: $block ($port):$connectionId" }
                                 if (lastBlock == block) {
                                     ++block
-                                    logger.debug { "lastBlock2: $lastBlock, block: $block, port: $port:$connectionId" }
+                                    vl { "lastBlock: $lastBlock, block: $block, port: $port:$connectionId" }
                                     if (block > 65535) {
                                         // wrap the block number
-                                        logger.debug { "lastBlock3: $lastBlock, block: $block, port: $port:$connectionId" }
                                         block = 0
                                     }
                                     wantReply = false
                                 } else {
-                                    logger.debug { "discardPackets:$connectionId" }
+                                    logger.debug { "ignoring block ($port:$connectionId)" }
                                 }
                             }
                             else -> throw IOException("Received unexpected packet type.")
@@ -134,18 +143,18 @@ class TFTPClient {
                 lastAckWait = true
             }
             data.blockNumber = block
-            logger.debug { "Sending blockNumber: ${data.blockNumber} of $block ($port:$connectionId)"}
+            vl { "Sending blockNumber: ${data.blockNumber} of $block ($port:$connectionId)"}
             data.setData(_sendBuffer, 4, totalThisPacket)
             sent = data
             _totalBytesSent += totalThisPacket.toLong()
         } while (true) // loops until after lastAckWait is set
         logger.debug { "sendFile finished ($port:$connectionId)" }
-        TFTPCommunity.tftpMapClient[port]!!.remove(connectionId)
+        channel.remove(connectionId)
     }
 
     fun send(packet: DatagramPacket, connectionId: Byte, socket: DatagramSocket) {
         val tftpPacket = TFTPPacket.newTFTPPacket(packet)
-        logger.debug {
+        vl {
             "Send TFTP packet of type ${tftpPacket.type} to " +
                 "${packet.address.hostName}:${packet.port} (${packet.length} B) (:$connectionId)"
         }
@@ -153,10 +162,5 @@ class TFTPClient {
         val wrappedData = byteArrayOf(TFTPEndpoint.PREFIX_TFTP, connectionId) + data
         packet.setData(wrappedData, 0, wrappedData.size)
         socket.send(packet)
-    }
-
-    fun receivePacket(packet: TFTPAckPacket, connectionId: Byte) {
-        TFTPCommunity.tftpMapClient[packet.port]!![connectionId]!!.offer(packet)
-        logger.debug { "Stored on ${packet.port}:$connectionId the packet"}
     }
 }
