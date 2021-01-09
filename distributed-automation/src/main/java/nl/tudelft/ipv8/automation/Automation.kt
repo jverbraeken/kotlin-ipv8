@@ -1,10 +1,6 @@
 package nl.tudelft.ipv8.automation
 
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.decodeFromString
-import kotlinx.serialization.json.Json
-import java.io.File
-import java.nio.file.Paths
 
 @Serializable
 data class Automation(val fixedValues: Map<String, String>, val figures: List<Figure>)
@@ -47,7 +43,7 @@ fun generateConfigs(
         figureNames.add(figure.name)
         val dataset = figure.fixedValues["dataset"]!!
         val maxIterations = figure.fixedValues["maxIterations"]!!
-        val behavior = figure.fixedValues["behavior"]!!
+        val attackerBehavior = figure.fixedValues["behavior"]!!
         val modelPoisoningAttack = figure.fixedValues["modelPoisoningAttack"]!!
         val numNodes = figure.fixedValues["numNodes"]!!.toInt()
         val numAttackers = figure.fixedValues["numAttackers"]!!
@@ -63,6 +59,7 @@ fun generateConfigs(
 
             for (node in 0 until numNodes) {
                 val distribution = overrideIteratorDistribution?.get(node % overrideIteratorDistribution.size) ?: overrideIteratorDistributionSoft ?: iteratorDistribution
+                val behavior = if (node >= numAttackers.split("_")[1].toInt()) "benign" else attackerBehavior
                 val slowdown = if ((node == 0 && firstNodeSpeed == -1) || (node != 0 && firstNodeSpeed == 1)) "d2" else "none"
                 val joiningLate = if (node == 0 && firstNodeJoiningLate) "n2" else "n0"
                 val configuration = mapOf(

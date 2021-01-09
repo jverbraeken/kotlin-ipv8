@@ -149,7 +149,6 @@ class AutomationCommunity : Community() {
 
             for (test in figureConfig.indices) {
                 runTest(figureName, figureConfig[test])
-                return@thread
             }
         }
     }
