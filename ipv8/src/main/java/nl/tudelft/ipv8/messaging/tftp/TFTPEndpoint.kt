@@ -9,9 +9,12 @@ import nl.tudelft.ipv8.messaging.Packet
 import nl.tudelft.ipv8.messaging.tftp.TFTPEndpoint.Companion.PREFIX_TFTP
 import org.apache.commons.net.tftp.*
 import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
 import java.lang.NullPointerException
 import java.net.*
 import java.util.concurrent.ConcurrentHashMap
+import java.util.zip.GZIPInputStream
+import java.util.zip.GZIPOutputStream
 
 private val logger = KotlinLogging.logger {}
 
@@ -79,7 +82,13 @@ class TFTPEndpoint : Endpoint<IPv4Address>() {
     override fun send(peer: IPv4Address, data: ByteArray) {
         startTransmission()
         scope.launch(Dispatchers.IO) {
-            val inputStream = ByteArrayInputStream(data)
+            val compressedData = ByteArrayOutputStream().use { os ->
+                GZIPOutputStream(os).use { os2 ->
+                    os2.write(data)
+                }
+                os.toByteArray()
+            }
+            val inputStream = ByteArrayInputStream(compressedData)
             val inetAddress = Inet4Address.getByName(peer.ip)
             var availableConnectionId = Byte.MIN_VALUE
             tftpClients.putIfAbsent(peer, ConcurrentHashMap())
@@ -129,7 +138,12 @@ class TFTPEndpoint : Endpoint<IPv4Address>() {
                     instance.onFileReceived = { data, address2, port ->
                         tftpServers[address]!!.remove(connectionId)
                         val sourceAddress = IPv4Address(address2.hostAddress, port)
-                        val received = Packet(sourceAddress, data)
+                        val uncompressedData = ByteArrayInputStream(data).use { stream ->
+                            GZIPInputStream(stream).use { stream2 ->
+                                stream2.readBytes()
+                            }
+                        }
+                        val received = Packet(sourceAddress, uncompressedData)
                         logger.debug("Received TFTP file (${data.size} B) from $sourceAddress, connectionId: $connectionId")
                         notifyListeners(received)
                     }
