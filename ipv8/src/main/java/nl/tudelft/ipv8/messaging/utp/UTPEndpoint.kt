@@ -32,12 +32,6 @@ private val logger = KotlinLogging.logger("UTPEndpoint")
 private var numTransmissions = 0
 private const val MAX_NUM_TRANSMISSIONS = 300
 
-fun canSend(): Boolean {
-    synchronized(numTransmissions) {
-        return numTransmissions < MAX_NUM_TRANSMISSIONS
-    }
-}
-
 private fun startTransmission() {
     synchronized(numTransmissions) {
         numTransmissions++
@@ -62,58 +56,53 @@ class UTPEndpoint : Endpoint<IPv4Address>() {
     }
 
     override fun send(peer: IPv4Address, data: ByteArray) {
-        if (canSend()) {
-            startTransmission()
-            logger.debug { "Sending with UTP to ${peer.ip}:${peer.port}" }
-            scope.launch(Dispatchers.IO) {
-                val time = measureTimeMillis {
-                    val compressedData: ByteArray = ByteArrayOutputStream().use { os ->
-                        GZIPOutputStream(os).use { os2 ->
-                            os2.write(data)
-                        }
-                        os.toByteArray()
+        startTransmission()
+        logger.debug { "Sending with UTP to ${peer.ip}:${peer.port}" }
+        scope.launch(Dispatchers.IO) {
+            val time = measureTimeMillis {
+                val compressedData: ByteArray = ByteArrayOutputStream().use { os ->
+                    GZIPOutputStream(os).use { os2 ->
+                        os2.write(data)
                     }
-                    logger.debug { "Opening channel" }
-                    val channel = UtpSocketChannel.open(socket!!)
-                    logger.debug { "Connecting to channel to ${peer.ip}:${peer.port}" }
-                    channel.setupConnectionId()
-                    registerChannel(channel, peer.port, channel.connectionIdSending, channel.connectionIdReceiving)
-                    val connectFuture = channel.connect(InetSocketAddress(peer.ip, peer.port))
-                    logger.debug { "Blocking" }
-                    var error = false
-                    try {
-                        withTimeout(1000) {
-                            scope.launch(Dispatchers.IO) {
-                                connectFuture.block()
-                            }.join()
-                        }
-                    } catch (e: TimeoutCancellationException) {
-                        logger.error { "Timeout connecting to ${peer.ip}:${peer.port}" }
-                        error = true
-                    }
-                    if (!error) {
-                        if (connectFuture.isSuccessful) {
-                            logger.debug { "Writing to ${peer.ip}:${peer.port}" }
-                            val writeFuture = channel.write(ByteBuffer.wrap(compressedData))
-                            logger.debug { "Blocking again to ${peer.ip}:${peer.port}" }
-                            writeFuture.block()
-                            if (!writeFuture.isSuccessful) {
-                                logger.error { "Error writing data to ${peer.ip}:${peer.port}" }
-                            }
-                        } else {
-                            logger.error { "Error establishing connection to ${peer.ip}:${peer.port}" }
-                        }
-                    }
-                    logger.debug { "Closing channel (${peer.ip}:${peer.port})" }
-                    channel.close()
-                    logger.debug { "Done (${peer.ip}:${peer.port})" }
-                    endTransmission()
+                    os.toByteArray()
                 }
-                logger.warn { "Timed: ${time}ms" }
+                logger.debug { "Opening channel" }
+                val channel = UtpSocketChannel.open(socket!!)
+                logger.debug { "Connecting to channel to ${peer.ip}:${peer.port}" }
+                channel.setupConnectionId()
+                registerChannel(channel, peer.port, channel.connectionIdSending, channel.connectionIdReceiving)
+                val connectFuture = channel.connect(InetSocketAddress(peer.ip, peer.port))
+                logger.debug { "Blocking" }
+                var error = false
+                try {
+                    withTimeout(1000) {
+                        scope.launch(Dispatchers.IO) {
+                            connectFuture.block()
+                        }.join()
+                    }
+                } catch (e: TimeoutCancellationException) {
+                    logger.error { "Timeout connecting to ${peer.ip}:${peer.port}" }
+                    error = true
+                }
+                if (!error) {
+                    if (connectFuture.isSuccessful) {
+                        logger.debug { "Writing to ${peer.ip}:${peer.port}" }
+                        val writeFuture = channel.write(ByteBuffer.wrap(compressedData))
+                        logger.debug { "Blocking again to ${peer.ip}:${peer.port}" }
+                        writeFuture.block()
+                        if (!writeFuture.isSuccessful) {
+                            logger.error { "Error writing data to ${peer.ip}:${peer.port}" }
+                        }
+                    } else {
+                        logger.error { "Error establishing connection to ${peer.ip}:${peer.port}" }
+                    }
+                }
+                logger.debug { "Closing channel (${peer.ip}:${peer.port})" }
+                channel.close()
+                logger.debug { "Done (${peer.ip}:${peer.port})" }
+                endTransmission()
             }
-        } else {
-            logger.warn { "Not sending UTP packet because still busy sending..." }
-            return
+            logger.warn { "Timed: ${time}ms" }
         }
     }
 
