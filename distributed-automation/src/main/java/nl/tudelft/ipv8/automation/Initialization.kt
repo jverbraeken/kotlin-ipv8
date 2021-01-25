@@ -1,9 +1,11 @@
 package nl.tudelft.ipv8.automation
 
+import kotlinx.coroutines.*
 import mu.KotlinLogging
 import java.io.File
 import java.io.PrintWriter
 import java.nio.file.Paths
+import java.util.concurrent.Callable
 import kotlin.concurrent.thread
 
 private val logger = KotlinLogging.logger("Initialization")
@@ -13,7 +15,7 @@ fun main() {
 
     createDevicesFile()
 
-    val threads = (0 until 4).map { i ->
+    val threads = (0 until 16).map { i ->
         thread {
             val port = 5554 + 2 * i
 
@@ -32,15 +34,16 @@ fun main() {
             getRootAccess(port)
 
             if (isAppInstalled(port)) {
-                uninstallApp(port)
+//                uninstallApp(port)
             } else {
                 logger.debug { "Skipping uninstalling app $port" }
-//                installApk(port, getApkFile())
+                installApk(port, getApkFile())
             }
 
-            installApk(port, getApkFile())
             grantPermissions(port)
-            runApp(port)
+            if (!isAppRunning(port)) {
+                runApp(port)
+            }
         }
     }
     threads.forEach { it.join() }
@@ -288,12 +291,13 @@ fun getApkFile(): String {
 }
 
 fun installApk(port: Int, file_apk: String) {
+    logger.debug { "$port: initiating installation" }
     val installing = Runtime.getRuntime().exec("adb -s emulator-$port install -t $file_apk")
     installing.inputStream.bufferedReader(Charsets.UTF_8).use {
         var txt = it.readLine()
-        logger.debug { txt }
+        logger.debug { "$port: $txt" }
         txt = it.readLine()
-        logger.debug { txt }
+        logger.debug { "$port: $txt" }
     }
 }
 
@@ -304,10 +308,19 @@ fun grantPermissions(port: Int) {
         .exec("adb -s emulator-$port shell pm grant nl.tudelft.trustchain android.permission.READ_EXTERNAL_STORAGE")
 }
 
+fun isAppRunning(port: Int): Boolean {
+    val running = Runtime.getRuntime().exec("adb -s emulator-$port shell ps | grep nl.tudelft.trustchain")
+    running.inputStream.reader(Charsets.UTF_8).use {
+        val result = it.readText()
+        logger.debug { result }
+        return result.isNotEmpty()
+    }
+}
+
 fun runApp(port: Int) {
     val start = Runtime.getRuntime()
         .exec("adb -s emulator-$port shell am start -n nl.tudelft.trustchain/nl.tudelft.trustchain.app.ui.dashboard.DashboardActivity -e activity fedml -e automationPart 0 -e enableExternalAutomation true")
     start.inputStream.reader(Charsets.UTF_8).use {
-        logger.debug { it.readText() }
+        logger.debug { "$port: ${it.readText()}" }
     }
 }

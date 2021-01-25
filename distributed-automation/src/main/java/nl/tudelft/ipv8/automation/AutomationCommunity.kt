@@ -194,7 +194,6 @@ class AutomationCommunity : Community() {
         /** Need localPortToWanAddress to process heartbeats **/
         messageListeners[MessageId.MSG_NOTIFY_HEARTBEAT]!!.add(object : MessageListener {
             override fun onMessageReceived(messageId: MessageId, peer: Peer, payload: Any) {
-                logger.info { "Heartbeat: ${peer.address.port}" }
                 val port = peer.address.port
                 peer.supportsUTP = true
                 wanPortToHeartbeat[port] = System.currentTimeMillis()

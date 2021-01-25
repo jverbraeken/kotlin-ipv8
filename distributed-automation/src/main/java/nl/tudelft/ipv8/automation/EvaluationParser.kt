@@ -10,6 +10,7 @@ fun main() {
     val files = evaluationsFolder.listFiles()!!
     val mostRecentEvaluations = files
         .filter { !it.name.startsWith("parsed - ") }
+        .filter { !it.isDirectory }
         .sortedByDescending { it.lastModified() }
         .take(4)
 
