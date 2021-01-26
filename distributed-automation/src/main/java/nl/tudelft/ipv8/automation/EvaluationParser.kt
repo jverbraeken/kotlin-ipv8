@@ -9,8 +9,7 @@ fun main() {
     val evaluationsFolder = Paths.get(System.getProperty("user.home"), "Downloads", "evaluations").toFile()
     val files = evaluationsFolder.listFiles()!!
     val mostRecentEvaluations = files
-        .filter { !it.name.startsWith("parsed - ") }
-        .filter { !it.isDirectory }
+        .filter { it.name.startsWith("evaluation-simulated") }
         .sortedByDescending { it.lastModified() }
         .take(4)
 
@@ -29,7 +28,7 @@ fun main() {
             .groupBy { it.key.split(" - ")[0] }
         val header = entries
             .values
-            .map { group -> listOf(*(group.map { it.key }.toTypedArray()), null) }
+            .map { group -> listOf(*(group.map { it.key }.toTypedArray()), null, null) }
             .flatten()
             .map { it ?: "" }
             .toTypedArray()

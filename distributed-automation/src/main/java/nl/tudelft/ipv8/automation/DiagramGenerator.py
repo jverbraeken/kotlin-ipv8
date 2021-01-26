@@ -13,7 +13,7 @@ print("Using:",matplotlib.get_backend())
 import numpy as np
 import pandas as pd
 
-pdf2 = pd.read_csv("C:/Users/jverb/Downloads/evaluations/parsed - evaluation-simulated-2021-01-02_20.43.03.csv")
+pdf2 = pd.read_csv("/home/joost/Downloads/evaluations/parsed - evaluation-simulated-2021-01-23_17.37.34.csv")
 
 columns = pdf2.columns
 count = 0
@@ -50,6 +50,6 @@ for column in [column for column in pdf2.columns.tolist() if not column[0:7] == 
         plt.legend()
         plt.title(diagram_names[diagram])
         # plt.show()
-        plt.savefig("C:/Users/jverb/Downloads/evaluations/" + column.split(" - ")[0] + ".png")
+        plt.savefig("/home/joost/Downloads/evaluations/" + column.split(" - ")[0] + ".png")
         plt.clf()
         diagram += 1

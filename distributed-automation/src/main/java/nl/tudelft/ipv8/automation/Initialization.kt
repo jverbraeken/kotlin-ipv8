@@ -39,7 +39,7 @@ fun main() {
                 logger.debug { "Skipping uninstalling app $port" }
                 installApk(port, getApkFile())
             }
-
+//
             grantPermissions(port)
             if (!isAppRunning(port)) {
                 runApp(port)
@@ -200,7 +200,7 @@ fun createFiles(i: Int, avdDir: File) {
                 "hw.lcd.height=3200\n" +
                 "hw.lcd.width=1080\n" +
                 "hw.mainKeys=no\n" +
-                "hw.ramSize=1800\n" +
+                "hw.ramSize=55000\n" +
                 "hw.sdCard=yes\n" +
                 "hw.sensors.orientation=yes\n" +
                 "hw.sensors.proximity=yes\n" +
