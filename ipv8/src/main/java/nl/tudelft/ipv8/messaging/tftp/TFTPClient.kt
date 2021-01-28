@@ -116,9 +116,9 @@ class TFTPClient {
                         throw IOException("Connection timed out ($port:$connectionId)")
                     }
                 } catch (e: TimeoutCancellationException) {
-                    if (++timeouts >= DEFAULT_MAX_TIMEOUTS) {
-                        throw IOException("Connection timed out ($port:$connectionId)")
-                    }
+//                    if (++timeouts >= DEFAULT_MAX_TIMEOUTS) {
+//                        throw IOException("Connection timed out ($port:$connectionId)")
+//                    }
                 } catch (e: TFTPPacketException) {
                     throw IOException("Bad packet: " + e.message)
                 }
