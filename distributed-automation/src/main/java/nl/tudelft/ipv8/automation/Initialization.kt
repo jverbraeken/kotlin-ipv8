@@ -15,7 +15,7 @@ fun main() {
 
     createDevicesFile()
 
-    val threads = (0 until 16).map { i ->
+    val threads = (0 until 13).map { i ->
         thread {
             val port = 5554 + 2 * i
 

@@ -9,9 +9,10 @@ fun main() {
     val evaluationsFolder = Paths.get(System.getProperty("user.home"), "Downloads", "evaluations").toFile()
     val files = evaluationsFolder.listFiles()!!
     val mostRecentEvaluations = files
-        .filter { it.name.startsWith("evaluation-simulated") }
-        .sortedByDescending { it.lastModified() }
-        .take(4)
+        .filter { it.name.startsWith("emulator-") }
+        .map { it.listFiles()!! }
+//        .sortedByDescending { it.lastModified() }
+//        .take(4)
 
     // Mapping a figure to a mapping of an iteration to its accuracy
     val data = mutableMapOf<String, MutableMap<Int, Double>>()
@@ -19,7 +20,7 @@ fun main() {
         val subData = scanEvaluation(evaluation)
         data.putAll(subData)
     }
-    val newFile = File(evaluationsFolder, "parsed - ${mostRecentEvaluations[0].name}")
+    val newFile = File(evaluationsFolder, "parsed - ${mostRecentEvaluations[0].first { !it.name.contains("meta") }.name}")
     newFile.bufferedWriter().use { bw ->
         val entries = data
             .entries
@@ -41,10 +42,19 @@ fun main() {
     }
 }
 
-fun scanEvaluation(evaluation: File): MutableMap<String, MutableMap<Int, Double>> {
-    val lines = evaluation.readLines()
+fun scanEvaluation(evaluations: Array<File>): MutableMap<String, MutableMap<Int, Double>> {
+    val meta = evaluations.first { it.name.contains("meta") }
+    val mainFile = evaluations.first { !it.name.contains("meta") }
+    val name = meta.readLines()[1].split(" - ")[0]
+    val lines = mainFile.readLines()
 
     val data = mutableMapOf<String, MutableMap<Int, Double>>()
+    if (lines.isEmpty()) {
+        repeat(6) {
+            data["$name - unknown fig: ${mainFile.name} $it"] = mutableMapOf()
+        }
+        return data
+    }
     for (line in lines.subList(1, lines.size)) {
         val split = line.split(", ")
         val figure = split[0]
@@ -52,6 +62,9 @@ fun scanEvaluation(evaluation: File): MutableMap<String, MutableMap<Int, Double>
         val accuracy = split[5].toDouble()
         data.putIfAbsent(figure, mutableMapOf())
         data[figure]!![iteration] = accuracy
+    }
+    repeat (6 - data.size) {
+        data["$name - unknown fig: ${mainFile.name} $it"] = mutableMapOf()
     }
     return data
 }
