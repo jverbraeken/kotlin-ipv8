@@ -155,7 +155,7 @@ class AutomationCommunity : Community() {
     }
 
     private fun loadAutomation(): Automation {
-        val file = File(AutomationCommunity::class.java.classLoader.getResource("automation.config")!!.path)
+        val file = File(AutomationCommunity::class.java.classLoader.getResource("automation.json")!!.path)
         val string = file.readLines().joinToString("")
         return Json.decodeFromString(string)
     }
