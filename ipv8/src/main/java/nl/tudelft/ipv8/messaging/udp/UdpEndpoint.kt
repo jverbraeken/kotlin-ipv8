@@ -131,7 +131,7 @@ open class UdpEndpoint(
         }
         val datagramPacket = DatagramPacket(data, data.size, toAddress.toSocketAddress())
         try {
-            logger.debug { "Sending with UDP to ${socket == null}, address: $address, ${socket?.isBound}"}
+//            logger.debug { "Sending with UDP to ${socket == null}, address: $address, ${socket?.isBound}"}
             socket?.send(datagramPacket)
         } catch (e: Exception) {
             logger.error("Sending DatagramPacket failed", e)
