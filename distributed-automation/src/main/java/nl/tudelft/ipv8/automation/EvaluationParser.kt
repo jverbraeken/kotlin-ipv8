@@ -24,11 +24,7 @@ fun main() {
                     split[4].substring(6, 8).toInt()
                 )
             }!!
-    }/*files
-        .filter { !it.name.startsWith("parsed - ") }
-        .filter { !it.isDirectory }
-        .sortedByDescending { it.lastModified() }
-        .take(4)*/
+    }
 
     // Mapping a figure to a mapping of an iteration to its accuracy
     val data = mutableMapOf<String, MutableMap<Int, Double>>()
@@ -36,7 +32,7 @@ fun main() {
         val subData = scanEvaluation(evaluation)
         data.putAll(subData)
     }
-    val newFile = File(evaluationsFolder, "parsed - ${mostRecentEvaluations[0].name}")
+    val newFile = File(evaluationsFolder, "parsed - ${mostRecentEvaluations[0].first { !it.name.contains("meta") }.name}")
     newFile.bufferedWriter().use { bw ->
         val entries = data
             .entries
@@ -75,6 +71,9 @@ fun scanEvaluation(evaluation: File): MutableMap<String, MutableMap<Int, Double>
                 data[figure]!![iteration] = accuracy
             }
         }
+    }
+    repeat (6 - data.size) {
+        data["$name - unknown fig: ${mainFile.name} $it"] = mutableMapOf()
     }
     return data
 }
