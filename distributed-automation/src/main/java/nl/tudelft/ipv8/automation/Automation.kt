@@ -29,6 +29,7 @@ fun generateConfigs(
     val batchSize = automation.fixedValues["batchSize"]!!
     val iteratorDistribution = automation.fixedValues["iteratorDistribution"]!!
     val maxTestSample = automation.fixedValues["maxTestSample"]!!
+    val maxIterations = automation.fixedValues["maxIterations"]!!
     val optimizer = automation.fixedValues["optimizer"]!!
     val learningRate = automation.fixedValues["learningRate"]!!
     val momentum = automation.fixedValues["momentum"]!!
@@ -42,8 +43,8 @@ fun generateConfigs(
         configurations.add(arrayListOf())
         figureNames.add(figure.name)
         val dataset = figure.fixedValues["dataset"]!!
-        val maxIterations = figure.fixedValues["maxIterations"]!!
-        val attackerBehavior = figure.fixedValues["behavior"]!!
+        val overrideMaxIterations = figure.fixedValues["maxIterations"]
+        val behavior = figure.fixedValues["behavior"]!!
         val modelPoisoningAttack = figure.fixedValues["modelPoisoningAttack"]!!
         val numNodes = figure.fixedValues["numNodes"]!!.toInt()
         val numAttackers = figure.fixedValues["numAttackers"]!!
@@ -52,22 +53,23 @@ fun generateConfigs(
         val overrideIteratorDistribution = figure.iteratorDistributions
         val overrideBatchSize = figure.fixedValues["batchSize"]
         val overrideIteratorDistributionSoft = figure.fixedValues["iteratorDistribution"]
+        val overrideCommunicationPattern = figure.fixedValues["communicationPattern"]
 
         for (test in figure.tests) {
             configurations.last().add(arrayListOf())
             val gar = test.gar
 
             for (node in 0 until numNodes) {
-                val distribution = overrideIteratorDistribution?.get(node % overrideIteratorDistribution.size) ?: overrideIteratorDistributionSoft ?: iteratorDistribution
-                val behavior = if (node >= numAttackers.split("_")[1].toInt()) "benign" else attackerBehavior
-                val slowdown = if ((node == 0 && firstNodeSpeed == -1) || (node != 0 && firstNodeSpeed == 1)) "d2" else "none"
-                val joiningLate = if (node == 0 && firstNodeJoiningLate) "n2" else "n0"
+                val finalDistribution = overrideIteratorDistribution?.get(node % overrideIteratorDistribution.size) ?: overrideIteratorDistributionSoft ?: iteratorDistribution
+                val finalBehavior = if (node >= numAttackers.split("_")[1].toInt()) "benign" else behavior
+                val finalSlowdown = if ((node == 0 && firstNodeSpeed == -1) || (node != 0 && firstNodeSpeed == 1)) "d2" else "none"
+                val finalJoiningLate = if (node == 0 && firstNodeJoiningLate) "n2" else "n0"
                 val configuration = mapOf(
                     Pair("dataset", dataset),
 
                     Pair("batchSize", overrideBatchSize ?: batchSize),
                     Pair("maxTestSamples", maxTestSample),
-                    Pair("iteratorDistribution", distribution),
+                    Pair("iteratorDistribution", finalDistribution),
 
                     Pair("optimizer", optimizer),
                     Pair("learningRate", learningRate),
@@ -76,10 +78,10 @@ fun generateConfigs(
 
                     Pair("maxIterations", maxIterations),
                     Pair("gar", gar),
-                    Pair("communicationPattern", communicationPattern),
-                    Pair("behavior", behavior),
-                    Pair("slowdown", slowdown),
-                    Pair("joiningLate", joiningLate),
+                    Pair("communicationPattern", overrideCommunicationPattern ?: communicationPattern),
+                    Pair("behavior", finalBehavior),
+                    Pair("slowdown", finalSlowdown),
+                    Pair("joiningLate", finalJoiningLate),
                     Pair("iterationsBeforeEvaluation", iterationsBeforeEvaluation),
                     Pair("iterationsBeforeSending", iterationsBeforeSending),
 

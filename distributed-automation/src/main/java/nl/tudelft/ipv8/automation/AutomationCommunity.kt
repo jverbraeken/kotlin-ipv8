@@ -143,18 +143,22 @@ class AutomationCommunity : Community() {
         val automation = loadAutomation()
         val (configs, figureNames) = generateConfigs(automation)
 
+
+
         for (figure in automation.figures.indices) {
             val figureName = figureNames[figure]
-            val figureConfig = configs[figure]
+            if (figureName == "Figure 0.1") {
+                val figureConfig = configs[figure]
 
-            for (test in figureConfig.indices) {
-                runTest(figureName, figureConfig[test])
+                for (test in figureConfig.indices) {
+                    runTest(figureName, figureConfig[test])
+                }
             }
         }
     }
 
     private fun loadAutomation(): Automation {
-        val file = File(AutomationCommunity::class.java.classLoader.getResource("automation.config")!!.path)
+        val file = File(AutomationCommunity::class.java.classLoader.getResource("automation.json")!!.path)
         val string = file.readLines().joinToString("")
         return Json.decodeFromString(string)
     }

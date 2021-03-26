@@ -27,12 +27,12 @@ fun main() {
     }
 
     // Mapping a figure to a mapping of an iteration to its accuracy
-    val data = mutableMapOf<String, MutableMap<Int, Double>>()
+    val data = mutableMapOf<String, Map<Int, List<Double>>>()
     for (evaluation in mostRecentEvaluations) {
         val subData = scanEvaluation(evaluation)
         data.putAll(subData)
     }
-    val newFile = File(evaluationsFolder, "parsed - ${mostRecentEvaluations[0].first { !it.name.contains("meta") }.name}")
+    val newFile = File(evaluationsFolder, "parsed evaluations.csv")
     newFile.bufferedWriter().use { bw ->
         val entries = data
             .entries
@@ -54,33 +54,52 @@ fun main() {
     }
 }
 
-fun scanEvaluation(evaluation: File): MutableMap<String, MutableMap<Int, Double>> {
+fun scanEvaluation(evaluation: File): Map<String, Map<Int, List<Double>>> {
     logger.debug { evaluation.absolutePath }
     val lines = evaluation.readLines()
 
-    val data = mutableMapOf<String, MutableMap<Int, Double>>()
-
-    if (lines.size > 0) {
-        for (line in lines.subList(1, lines.size)) {
-            val split = line.split(", ")
-            if (split[1] == "0") {
-                val figure = split[0]
-                val iteration = split[4].toInt()
-                val accuracy = split[5].toDouble()
-                data.putIfAbsent(figure, mutableMapOf())
-                data[figure]!![iteration] = accuracy
+    val data = mutableMapOf<String, MutableMap<Int, MutableList<Double>>>()
+    if (lines.size == 0) {
+        logger.error { "Skipping!!!!!!!!!!!!!!" }
+        val map = mutableMapOf<Int, MutableList<Double>>()
+        repeat(30) {
+            val list = arrayListOf<Double>()
+            repeat(12) {
+                list.add(0.0)
             }
+            map.put(it * 10, list)
         }
+        data.putIfAbsent("Figure 9.0 - average - transfer", map)
+        data.putIfAbsent("Figure 9.0 - median - transfer", map)
+        data.putIfAbsent("Figure 9.0 - krum - transfer", map)
+        data.putIfAbsent("Figure 9.0 - bridge - transfer", map)
+        data.putIfAbsent("Figure 9.0 - mozi - transfer", map)
+        data.putIfAbsent("Figure 9.0 - bristle - transfer", map)
+        data.putIfAbsent("Figure 9.0 - average - regular", map)
+        data.putIfAbsent("Figure 9.0 - median - regular", map)
+        data.putIfAbsent("Figure 9.0 - krum - regular", map)
+        data.putIfAbsent("Figure 9.0 - bridge - regular", map)
+        data.putIfAbsent("Figure 9.0 - mozi - regular", map)
+        return data
     }
-    repeat (6 - data.size) {
-        data["$name - unknown fig: ${mainFile.name} $it"] = mutableMapOf()
+    for (line in lines.subList(1, lines.size)) {
+        val split = line.split(", ")
+        val node = split[1].toInt()
+        if (node <= 5) {
+            val figure = split[0]
+            val iteration = split[4].toInt()
+            val accuracy = split[5].toDouble()
+            data.putIfAbsent(figure, mutableMapOf())
+            data[figure]!!.putIfAbsent(iteration, arrayListOf())
+            data[figure]!![iteration]!!.add(accuracy)
+        }
     }
     return data
 }
 
-fun getAccuracies(iteration: Int, entryGroups: Map<String, List<Map.Entry<String, Map<Int, Double>>>>): Array<Double?> {
+fun getAccuracies(iteration: Int, entryGroups: Map<String, List<Map.Entry<String, Map<Int, List<Double>>>>>): Array<Double?> {
     return entryGroups
-        .map { group -> listOf(iteration.toDouble(), *(group.value.map { it.value[iteration] }.toTypedArray()), null) }
+        .map { group -> listOf(iteration.toDouble(), *(group.value.map { it.value[iteration]!!.average() }.toTypedArray()), null) }
         .flatten()
         .toTypedArray()
 }
