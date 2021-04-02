@@ -15,7 +15,7 @@ fun main() {
 
     createDevicesFile()
 
-    val threads = (0 until 13).map { i ->
+    val threads = (0 until 16).map { i ->
         thread {
             val port = 5554 + 2 * i
 
@@ -33,13 +33,13 @@ fun main() {
 
             getRootAccess(port)
 
-            if (isAppInstalled(port)) {
-//                uninstallApp(port)
+            /*if (isAppInstalled(port)) {
+                uninstallApp(port)
             } else {
-                logger.debug { "Skipping uninstalling app $port" }
+                logger.debug { "Skipping uninstalling app $port" }*/
                 installApk(port, getApkFile())
-            }
-//
+//            }
+
             grantPermissions(port)
             if (!isAppRunning(port)) {
                 runApp(port)

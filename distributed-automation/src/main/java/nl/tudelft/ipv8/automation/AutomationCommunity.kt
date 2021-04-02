@@ -1,6 +1,8 @@
 package nl.tudelft.ipv8.automation
 
+import kotlinx.coroutines.channels.ticker
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
@@ -15,8 +17,11 @@ import java.io.*
 import java.nio.file.Files
 import java.nio.file.Paths
 import java.security.AccessController.doPrivileged
+import java.time.LocalDateTime
+import java.time.ZoneOffset
 import java.util.*
 import java.util.concurrent.CountDownLatch
+import kotlin.concurrent.fixedRateTimer
 import kotlin.concurrent.thread
 
 private val logger = KotlinLogging.logger("AutomationCommunity")
@@ -33,6 +38,7 @@ class AutomationCommunity : Community() {
     private val wanPortToPeer = mutableMapOf<Int, Peer>()
     private var wanPortToHeartbeat = mutableMapOf<Int, Long>()
     private val currentOS = getOS()
+    @Volatile private var receivedUpdate = true
 
     enum class OS {
         WINDOWS, UNIX
@@ -62,6 +68,7 @@ class AutomationCommunity : Community() {
 
         messageListeners[MessageId.MSG_NOTIFY_EVALUATION]!!.add(object : MessageListener {
             override fun onMessageReceived(messageId: MessageId, peer: Peer, payload: Any) {
+                receivedUpdate = true
                 val localPort = localPortToWanAddress.filterValues { it.port == peer.address.port }.keys.first()
                 logger.info { "====> Evaluation: $localPort" }
                 evaluationProcessor.call(localPort, (payload as MsgNotifyEvaluation).evaluation)
@@ -147,13 +154,13 @@ class AutomationCommunity : Community() {
 
         for (figure in automation.figures.indices) {
             val figureName = figureNames[figure]
-            if (figureName == "Figure 0.1") {
+//            if (figureName == "Figure 0.1") {
                 val figureConfig = configs[figure]
 
                 for (test in figureConfig.indices) {
                     runTest(figureName, figureConfig[test])
                 }
-            }
+//            }
         }
     }
 
@@ -181,7 +188,24 @@ class AutomationCommunity : Community() {
             val peer = wanPortToPeer[wanPort]!!
             send(peer, packet, true)
         }
+
+        receivedUpdate = true
+        val ticker = fixedRateTimer(period = 3 * 60 * 1000, initialDelay = 2 * 60 * 1000) {
+            logger.info { "tick: $receivedUpdate" }
+            if (receivedUpdate) {
+                receivedUpdate = false
+            } else {
+                logger.warn { "Forcefully terminating automation and going to next test" }
+                repeat(testFinishedLatch.count.toInt()) {
+                    testFinishedLatch.countDown()
+                    logger.info { "countdown: ${testFinishedLatch.count}" }
+                }
+                logger.info { "countdown: ${testFinishedLatch.count}" }
+            }
+        }
+
         testFinishedLatch.await()
+        ticker.cancel()
         logger.warn { "Test finished" }
     }
 
@@ -326,32 +350,34 @@ class AutomationCommunity : Community() {
     }
 
     private fun runAppOnAllDevices() = runBlocking {
-        val maxHeartbeatDelay = 5000L
-        val additionalWait = 3000L
-        val restartTime = 20000L
-        var maxTime = System.currentTimeMillis() - maxHeartbeatDelay
-        if (localPortToWanAddress.all { wanPortToHeartbeat.getOrDefault(it.value.port, -1) >= maxTime }) {
-            logger.info { "All peers alive" }
-            return@runBlocking
+        localPortToWanAddress.forEach {
+            uninstallApp(it.key)
         }
+        logger.info { "Delaying 3000ms to uninstall apps" }
+        delay(3000L)
+        logger.info { "Probably done uninstalling apps" }
 
-        logger.info { "Didn't receive heartbeat from all peers => waiting a bit longer" }
-        delay(additionalWait)
-        maxTime -= additionalWait
-        if (localPortToWanAddress.all { wanPortToHeartbeat.getOrDefault(it.value.port, -1) >= maxTime }) {
-            logger.info { "All peers alive" }
-            return@runBlocking
+        localPortToWanAddress.forEach {
+            installApk(it.key, getApkFile())
         }
+        logger.info { "Delaying 2000ms more to install apps" }
+        delay(2000L)
+        logger.info { "Probably installing apps" }
 
-        val deadPeers =
-            localPortToWanAddress.filterValues { wanPortToHeartbeat.getOrDefault(it.port, 0) < maxTime }.keys
-        logger.info { "Peers that might be dead => restarting app on these devices: $deadPeers" }
-        deadPeers.forEach {
-            runAppOnDevice(it)
+        localPortToWanAddress.forEach {
+            grantPermissions(it.key)
         }
-        logger.debug { "Sleeping $restartTime ms to let peers restart the app" }
-        delay(restartTime)  // Give time to restart app
-        maxTime -= restartTime
+        logger.info { "Delaying 2000ms to grant permissions" }
+        delay(2000L)
+        logger.info { "Probably done granting permissions" }
+
+        localPortToWanAddress.forEach {
+            runAppOnDevice(it.key)
+        }
+        val maxTime = System.currentTimeMillis()
+        logger.info { "Delaying 10000ms to start app" }
+        delay(10000L)
+
         setupPorts()  // Ports might have changed
         if (localPortToWanAddress.all { wanPortToHeartbeat.getOrDefault(it.value.port, -1) >= maxTime }) {
             logger.info { "Success restarting devices => all peers alive" }
