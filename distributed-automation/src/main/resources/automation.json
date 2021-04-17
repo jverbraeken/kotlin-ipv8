@@ -14,32 +14,17 @@
   },
   "figures": [
     {
-      "name": "Figure 4.3",
+      "name": "Figure 4.5",
       "fixedValues": {
         "dataset": "mnist",
-        "behavior": "label_flip_all",
-        "modelPoisoningAttack": "none",
-        "numNodes": "16",
+        "behavior": "benign",
+        "modelPoisoningAttack": "fang_2020_trimmed_mean",
+        "numNodes": "10",
         "numAttackers": "num_5"
       },
       "tests": [
         {
           "gar": "bristle"
-        },
-        {
-          "gar": "average"
-        },
-        {
-          "gar": "median"
-        },
-        {
-          "gar": "krum"
-        },
-        {
-          "gar": "bridge"
-        },
-        {
-          "gar": "mozi"
         }
       ],
       "iteratorDistributions": [
@@ -52,12 +37,7 @@
         "[0, 0, 0, 0, 0, 0, 10, 10, 10, 10]",
         "[10, 0, 0, 0, 0, 0, 0, 10, 10, 10]",
         "[10, 10, 0, 0, 0, 0, 0, 0, 10, 10]",
-        "[10, 10, 10, 0, 0, 0, 0, 0, 0, 10]",
-        "[10, 10, 10, 10, 10, 10, 10, 10, 10, 10]",
-        "[10, 10, 10, 10, 10, 10, 10, 10, 10, 10]",
-        "[10, 10, 10, 10, 10, 10, 10, 10, 10, 10]",
-        "[10, 10, 10, 10, 10, 10, 10, 10, 10, 10]",
-        "[10, 10, 10, 10, 10, 10, 10, 10, 10, 10]"
+        "[10, 10, 10, 0, 0, 0, 0, 0, 0, 10]"
       ]
     }
   ]

@@ -96,10 +96,7 @@ fun generateConfigs(
                         Pair("modelPoisoningAttack", modelPoisoningAttack),
                         Pair("numAttackers", numAttackers)
                     )
-                    if (gar != "bristle") {
-                        configurations.last().last().add(configuration + mapOf(Pair("transfer", "false")))
-                    }
-                    configurations.last().last().add(configuration + mapOf(Pair("transfer", "true")))
+                    configurations.last().last().add(configuration + mapOf(Pair("transfer", if (transfer) "true" else "false")))
                 }
             }
         }

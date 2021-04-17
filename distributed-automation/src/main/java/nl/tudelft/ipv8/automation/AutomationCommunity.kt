@@ -1,8 +1,6 @@
 package nl.tudelft.ipv8.automation
 
-import kotlinx.coroutines.channels.ticker
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
@@ -16,9 +14,6 @@ import nl.tudelft.ipv8.messaging.payload.IntroductionRequestPayload
 import java.io.*
 import java.nio.file.Files
 import java.nio.file.Paths
-import java.security.AccessController.doPrivileged
-import java.time.LocalDateTime
-import java.time.ZoneOffset
 import java.util.*
 import java.util.concurrent.CountDownLatch
 import kotlin.concurrent.fixedRateTimer
@@ -171,20 +166,20 @@ class AutomationCommunity : Community() {
     }
 
     private fun runTest(figureName: String, config: List<Map<String, String>>) {
-        prepareEnvironment()
+        prepareEnvironment(config.size)
         while (localPortToWanAddress.size < config.size) {
             logger.info { "Too few devices found to run the test: ${localPortToWanAddress.size} devices found, ${config.size} devices needed" }
             Thread.sleep(2000)
         }
         logger.error { "Going to test: $figureName - ${config[0]["gar"]}" }
         evaluationProcessor.newSimulation("$figureName - ${config[0]["gar"]}", config)
-        val activeLocalPorts = localPortToWanAddress.keys.toList().subList(0, config.size)
+        val activeLocalPorts = localPortToWanAddress.toSortedMap().toList().take(config.size)
         testFinishedLatch = CountDownLatch(activeLocalPorts.size)
 
         for ((i, localPort) in activeLocalPorts.withIndex()) {
             val msgNewTestCommand = MsgNewTestCommand(config[i], figureName)
             val packet = serializePacket(MessageId.MSG_NEW_TEST_COMMAND.id, msgNewTestCommand, true)
-            val wanPort = localPortToWanAddress[localPort]!!.port
+            val wanPort = localPort.second.port
             val peer = wanPortToPeer[wanPort]!!
             send(peer, packet, true)
         }
@@ -209,10 +204,10 @@ class AutomationCommunity : Community() {
         logger.warn { "Test finished" }
     }
 
-    private fun prepareEnvironment() {
+    private fun prepareEnvironment(numDevices: Int) {
         setupPorts()
-        runAppOnAllDevices()
-        introduceAllPeers()
+        runAppOnAllDevices(numDevices)
+        introduceAllPeers(numDevices)
     }
 
     private fun setupPorts() {
@@ -349,7 +344,7 @@ class AutomationCommunity : Community() {
         return mainFile
     }
 
-    private fun runAppOnAllDevices() = runBlocking {
+    private fun runAppOnAllDevices(numDevices: Int) = runBlocking {
         localPortToWanAddress.forEach {
             uninstallApp(it.key)
         }
@@ -357,29 +352,33 @@ class AutomationCommunity : Community() {
         delay(3000L)
         logger.info { "Probably done uninstalling apps" }
 
-        localPortToWanAddress.forEach {
-            installApk(it.key, getApkFile())
-        }
-        logger.info { "Delaying 2000ms more to install apps" }
-        delay(2000L)
-        logger.info { "Probably installing apps" }
+        val devices = localPortToWanAddress.toSortedMap().toList().take(numDevices)
 
-        localPortToWanAddress.forEach {
-            grantPermissions(it.key)
+        val threads: MutableList<Thread> = arrayListOf()
+        devices.forEach {
+            threads.add(thread {
+                installApk(it.first, getApkFile())
+            })
+        }
+        threads.forEach { it.join() }
+        logger.info { "Installed apps" }
+
+        devices.forEach {
+            grantPermissions(it.first)
         }
         logger.info { "Delaying 2000ms to grant permissions" }
         delay(2000L)
         logger.info { "Probably done granting permissions" }
 
-        localPortToWanAddress.forEach {
-            runAppOnDevice(it.key)
+        devices.forEach {
+            runAppOnDevice(it.first)
         }
         val maxTime = System.currentTimeMillis()
         logger.info { "Delaying 10000ms to start app" }
         delay(10000L)
 
         setupPorts()  // Ports might have changed
-        if (localPortToWanAddress.all { wanPortToHeartbeat.getOrDefault(it.value.port, -1) >= maxTime }) {
+        if (devices.all { wanPortToHeartbeat.getOrDefault(it.second.port, -1) >= maxTime }) {
             logger.info { "Success restarting devices => all peers alive" }
             return@runBlocking
         }
@@ -422,10 +421,12 @@ class AutomationCommunity : Community() {
         Runtime.getRuntime().exec(file.path)
     }
 
-    private fun introduceAllPeers() {
+    private fun introduceAllPeers(numDevices: Int) {
         logger.debug { "1:      ${wanPortToPeer.entries}" }
-        for ((_, peer) in wanPortToPeer.entries) {
-            val introductions = wanPortToPeer.values.filterNot { it == peer }
+
+        val devices = localPortToWanAddress.toSortedMap().toList().take(numDevices)
+        for (device in devices) {
+            val introductions = wanPortToPeer.values.filterNot { it == wanPortToPeer[device.second.port] }
             val wanPorts = introductions.map { it.address.port }
             val msgForcedIntroduction = MsgForcedIntroduction(
                 wanPorts,
@@ -435,7 +436,7 @@ class AutomationCommunity : Community() {
             )
             logger.debug("-> $msgForcedIntroduction")
             val packet = serializePacket(MessageId.MSG_FORCED_INTRODUCTION.id, msgForcedIntroduction, true)
-            send(peer, packet, true)
+            send(wanPortToPeer[device.second.port]!!, packet, true)
         }
         while (!endpoint.udpEndpoint!!.noPendingTFTPMessages()) {
             logger.debug { "Waiting for all UTP messages to be sent" }

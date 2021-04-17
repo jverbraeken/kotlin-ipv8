@@ -33,10 +33,10 @@ fun main() {
 
             getRootAccess(port)
 
-            /*if (isAppInstalled(port)) {
-                uninstallApp(port)
-            } else {
-                logger.debug { "Skipping uninstalling app $port" }*/
+//            if (isAppInstalled(port)) {
+//                uninstallApp(port)
+//            } else {
+//                logger.debug { "Skipping uninstalling app $port" }
                 installApk(port, getApkFile())
 //            }
 
@@ -44,6 +44,7 @@ fun main() {
             if (!isAppRunning(port)) {
                 runApp(port)
             }
+            grantPermissions(port)
         }
     }
     threads.forEach { it.join() }
