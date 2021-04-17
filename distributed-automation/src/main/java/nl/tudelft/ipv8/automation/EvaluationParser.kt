@@ -10,7 +10,7 @@ private const val STEP_SIZE = 10
 private val logger = KotlinLogging.logger("EvaluationParser")
 
 fun main() {
-    val evaluationsFolder = Paths.get(System.getProperty("user.home"), "Downloads", "evaluations").toFile()
+    val evaluationsFolder = Paths.get(System.getProperty("user.home"), "Downloads", "evaluations upd min max").toFile()
     val files = evaluationsFolder.listFiles()!!
     val mostRecentEvaluations = files.filter { it.isDirectory }.map {
         it.listFiles().first { it.isDirectory }.listFiles()
@@ -82,24 +82,36 @@ fun scanEvaluation(evaluation: File): Map<String, Map<Int, List<Double>>> {
         data.putIfAbsent("Figure 9.0 - mozi - regular", map)
         return data
     }
-    for (line in lines.subList(1, lines.size)) {
+    val distributed = if (evaluation.absolutePath.contains("distributed")) 1 else 0
+    val distributedNode = if (distributed == 1) {
+        0
+    } else {
+        -1
+    }
+    val spl = lines.subList(1, lines.size/* - 1*/).map { it.split(", ") }
+    val figureNames = spl.map { it[1] }.distinct()
+    val figureToBestNode = figureNames.associateWith { name -> if (distributed == 0) -1 else spl.filter { it[1] == name }.filter { it[5].toInt() == 290 && it[14] == "-" }.firstOrNull()?.get(0)?.toInt() ?: 5554 }
+    for (line in lines.subList(1, lines.size/* - 1*/)) {
         val split = line.split(", ")
-        val node = split[1].toInt()
-        if (node <= 5) {
-            val figure = split[0]
-            val iteration = split[4].toInt()
-            val accuracy = split[5].toDouble()
-            data.putIfAbsent(figure, mutableMapOf())
-            data[figure]!!.putIfAbsent(iteration, arrayListOf())
-            data[figure]!![iteration]!!.add(accuracy)
+        val node = if (distributed == 1) split[0].toInt() else split[1].toInt()
+        val figure = (if (distributed == 1) "Distributed " else "") + split[0 + distributed]
+        if (node < 7 || node == figureToBestNode[split[0 + distributed]]) {
+            if (node == 0 || !split[0 + distributed].startsWith("Figure 0.")) {
+                val iteration = split[4 + distributed].toInt()
+                val accuracy = split[5 + distributed].toDouble()
+                data.putIfAbsent(figure, mutableMapOf())
+                data[figure]!!.putIfAbsent(iteration, arrayListOf())
+                data[figure]!![iteration]!!.add(accuracy)
+            }
         }
     }
+//    println("Time for Figure ${lines[1].split(", ")[0]}: ${lines.last().split(", ")[0]}")
     return data
 }
 
 fun getAccuracies(iteration: Int, entryGroups: Map<String, List<Map.Entry<String, Map<Int, List<Double>>>>>): Array<Double?> {
     return entryGroups
-        .map { group -> listOf(iteration.toDouble(), *(group.value.map { it.value[iteration]!!.average() }.toTypedArray()), null) }
+        .map { group -> listOf(iteration.toDouble(), *(group.value.map { (it.value[iteration] ?: listOf(0.0)).average() }.toTypedArray()), null) }
         .flatten()
         .toTypedArray()
 }
